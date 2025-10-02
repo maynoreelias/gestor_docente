@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestor de Notas para Docentes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for in-browser JSX transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Custom scrollbar for better mobile experience */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #7dd3fc; /* sky-300 */
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #38bdf8; /* sky-400 */
+        }
+        body {
+            overscroll-behavior-y: contain;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-700 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      // All application code is now bundled here.
+      // No need for imports/exports.
+
+      // From: utils/csvHelper.ts
+      const exportToCsv = (course, trimesterData, trimesterNumber) => {
+          if (!course || !trimesterData) return;
+
+          let csvContent = "data:text/csv;charset=utf-8,";
+          
+          const headers = ["Estudiante", ...trimesterData.activities.map(a => `${a.name} (${a.weight}%)`), "Suma Total"];
+          csvContent += headers.join(",") + "\r\n";
+
+          course.students.forEach(student => {
+              const notes = trimesterData.notes[student.id] || {};
+              const row = [`"${student.name}"`];
+              
+              let totalSum = 0;
+
+              trimesterData.activities.forEach(activity => {
+                  const note = notes[activity.id];
+                  const noteValue = (note !== null && note !== undefined) ? Number(note) : 0;
+                  row.push(String(noteValue));
+                  totalSum += noteValue;
+              });
+
+              row.push(totalSum.toFixed(2));
+              csvContent += row.join(",") + "\r\n";
+          });
+
+          const encodedUri = encodeURI(csvContent);
+          const link = document.createElement("a");
+          link.setAttribute("href", encodedUri);
+          const fileName = `curso_${course.name.replace(/\s+/g, '_')}_bimestre_${trimesterNumber}.csv`;
+          link.setAttribute("download", fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      };
+
+      const parseStudentsFromCsv = (fileContent) => {
+          if (!fileContent) return [];
+          
+          const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+          if (lines.length === 0) return [];
+          
+          const headerPattern = /nombre|student|name/i;
+          const hasHeader = headerPattern.test(lines[0]);
+
+          return lines
+            .slice(hasHeader ? 1 : 0)
+            .map(line => line.split(',')[0].trim())
+            .filter(name => name.length > 0);
+      };
+
+      // From: hooks/useAppData.ts
+      const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+      const useAppData = () => {
+        const STORAGE_KEY = 'teacherGradebookDataSchool';
+
+        const createEmptyTrimesters = () => ({
+          '1': { activities: [], notes: {} },
+          '2': { activities: [], notes: {} },
+          '3': { activities: [], notes: {} },
+          '4': { activities: [], notes: {} },
+        });
+        
+        const [courses, setCourses] = useState([]);
+        const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+        useEffect(() => {
+          try {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (storedData) {
+              setCourses(JSON.parse(storedData));
+            }
+          } catch (error) {
+            console.error("Error loading data from localStorage:", error);
+          } finally {
+            setIsDataLoaded(true);
+          }
+        }, []);
+
+        useEffect(() => {
+          if (isDataLoaded) {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
+            } catch (error) {
+              console.error("Error saving data to localStorage:", error);
+            }
+          }
+        }, [courses, isDataLoaded]);
+
+        const restoreCourses = useCallback((newCoursesData) => {
+            if (Array.isArray(newCoursesData)) {
+                setCourses(newCoursesData);
+                return true;
+            }
+            console.error("Invalid backup file format.");
+            alert("El archivo de la copia de seguridad no es válido.");
+            return false;
+        }, []);
+        
+        const addCourse = useCallback((name, grade, year) => {
+          const newCourse = {
+            id: `course_${Date.now()}`,
+            name,
+            grade,
+            year,
+            students: [],
+            quickNotes: [70, 85, 100],
+            trimesters: createEmptyTrimesters(),
+          };
+          setCourses(prev => [...prev, newCourse]);
+        }, []);
+
+        const updateCourse = useCallback((id, name, grade, year) => {
+          setCourses(prev => prev.map(c => c.id === id ? { ...c, name, grade, year } : c));
+        }, []);
+
+        const deleteCourse = useCallback((id) => {
+          setCourses(prev => prev.filter(c => c.id !== id));
+        }, []);
+
+        const addStudent = useCallback((courseId, studentName) => {
+          const newStudent = { id: `student_${Date.now()}`, name: studentName };
+          setCourses(prev => prev.map(c => {
+            if (c.id === courseId) {
+              const updatedStudents = [...c.students, newStudent];
+              const updatedTrimesters = { ...c.trimesters };
+              
+              Object.keys(updatedTrimesters).forEach(key => {
+                  updatedTrimesters[key].notes[newStudent.id] = {};
+              });
+
+              return { ...c, students: updatedStudents, trimesters: updatedTrimesters };
+            }
+            return c;
+          }));
+        }, []);
+        
+        const deleteStudent = useCallback((courseId, studentId) => {
+          setCourses(prev => prev.map(c => {
+              if (c.id === courseId) {
+                  const updatedStudents = c.students.filter(s => s.id !== studentId);
+                  const updatedTrimesters = JSON.parse(JSON.stringify(c.trimesters));
+                  Object.keys(updatedTrimesters).forEach(key => {
+                      delete updatedTrimesters[key].notes[studentId];
+                  });
+                  return { ...c, students: updatedStudents, trimesters: updatedTrimesters };
+              }
+              return c;
+          }));
+        }, []);
+
+        const addActivity = useCallback((courseId, trimester, activityName, weight, description) => {
+          const newActivity = { id: `activity_${Date.now()}`, name: activityName, weight, description };
+          setCourses(prev => prev.map(c => {
+            if (c.id === courseId) {
+              const updatedCourse = { ...c };
+              updatedCourse.trimesters[trimester].activities.push(newActivity);
+              return updatedCourse;
+            }
+            return c;
+          }));
+        }, []);
+        
+        const deleteActivity = useCallback((courseId, trimester, activityId) => {
+            setCourses(prev => prev.map(c => {
+                if (c.id === courseId) {
+                    const updatedCourse = JSON.parse(JSON.stringify(c));
+                    updatedCourse.trimesters[trimester].activities = updatedCourse.trimesters[trimester].activities.filter((a) => a.id !== activityId);
+                    
+                    Object.keys(updatedCourse.trimesters[trimester].notes).forEach(studentId => {
+                        delete updatedCourse.trimesters[trimester].notes[studentId][activityId];
+                    });
+                    return updatedCourse;
+                }
+                return c;
+            }));
+        }, []);
+
+        const updateNote = useCallback((courseId, trimester, studentId, activityId, score) => {
+            setCourses(prev => prev.map(c => {
+                if (c.id === courseId) {
+                    const updatedCourse = JSON.parse(JSON.stringify(c));
+                    if (!updatedCourse.trimesters[trimester].notes[studentId]) {
+                        updatedCourse.trimesters[trimester].notes[studentId] = {};
+                    }
+                    updatedCourse.trimesters[trimester].notes[studentId][activityId] = score;
+                    return updatedCourse;
+                }
+                return c;
+            }));
+        }, []);
+
+        const updateQuickNotes = useCallback((courseId, notes) => {
+            setCourses(prev => prev.map(c => c.id === courseId ? { ...c, quickNotes: notes } : c));
+        }, []);
+
+        return {
+          courses, isDataLoaded, addCourse, updateCourse, deleteCourse,
+          addStudent, deleteStudent, addActivity, deleteActivity, updateNote, updateQuickNotes,
+          restoreCourses, STORAGE_KEY
+        };
+      };
+
+      // From: components/Modal.tsx
+      const Modal = ({ isOpen, onClose, title, children }) => {
+        if (!isOpen) return null;
+
+        return (
+          <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4 backdrop-blur-sm"
+              onClick={onClose}
+          >
+            <div
+              className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] flex flex-col transform transition-all animate-in fade-in-0 zoom-in-95 border border-slate-200"
+              onClick={e => e.stopPropagation()}
+            >
+              <header className="flex justify-between items-center p-4 border-b border-slate-200">
+                <h2 className="text-xl font-bold font-serif text-slate-800">{title}</h2>
+                <button
+                  onClick={onClose}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </header>
+              <main className="p-6 overflow-y-auto">
+                {children}
+              </main>
+            </div>
+          </div>
+        );
+      };
+
+      // From: components/CourseListView.tsx
+      const CourseForm = ({ onSave, onClose, course }) => {
+        const [name, setName] = useState(course?.name || '');
+        const [grade, setGrade] = useState(course?.grade || '');
+        const [year, setYear] = useState(course?.year || new Date().getFullYear());
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (name && grade && year) {
+            onSave(name, grade, year);
+            onClose();
+          }
+        };
+
+        return (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="courseName" className="block text-sm font-medium text-slate-600">Nombre del Curso</label>
+              <input type="text" id="courseName" value={name} onChange={e => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+            </div>
+            <div>
+              <label htmlFor="courseGrade" className="block text-sm font-medium text-slate-600">Grado</label>
+              <input type="text" id="courseGrade" value={grade} onChange={e => setGrade(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+            </div>
+            <div>
+              <label htmlFor="courseYear" className="block text-sm font-medium text-slate-600">Año</label>
+              <input type="number" id="courseYear" value={year} onChange={e => setYear(Number(e.target.value))} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+              <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600 transition-colors">Guardar Curso</button>
+            </div>
+          </form>
+        );
+      };
+
+      const CourseListView = ({ courses, onSelectCourse, addCourse, updateCourse, deleteCourse, restoreCourses, STORAGE_KEY }) => {
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [editingCourse, setEditingCourse] = useState(null);
+        const [deletingCourseId, setDeletingCourseId] = useState(null);
+        const [isUtilsMenuOpen, setIsUtilsMenuOpen] = useState(false);
+        const [restoreData, setRestoreData] = useState(null);
+        const utilsMenuRef = useRef(null);
+        const fileInputRef = useRef(null);
+
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (utilsMenuRef.current && !utilsMenuRef.current.contains(event.target)) {
+                    setIsUtilsMenuOpen(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, []);
+
+        const handleOpenCreateModal = () => {
+          setEditingCourse(null);
+          setIsModalOpen(true);
+        };
+        
+        const handleOpenEditModal = (course) => {
+          setEditingCourse(course);
+          setIsModalOpen(true);
+        };
+
+        const handleSaveCourse = (name, grade, year) => {
+          if (editingCourse) {
+            updateCourse(editingCourse.id, name, grade, year);
+          } else {
+            addCourse(name, grade, year);
+          }
+        };
+        
+        const confirmDelete = () => {
+            if (deletingCourseId) {
+                deleteCourse(deletingCourseId);
+                setDeletingCourseId(null);
+            }
+        };
+
+        const handleCreateBackup = () => {
+            const dataToBackup = localStorage.getItem(STORAGE_KEY);
+            if (!dataToBackup) {
+                alert("No hay datos para respaldar.");
+                return;
+            }
+            const blob = new Blob([dataToBackup], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const date = new Date().toISOString().slice(0, 10);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `copia_seguridad_notas_${date}.json`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setIsUtilsMenuOpen(false);
+        };
+
+        const handleLoadBackup = (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    setRestoreData(parsedData);
+                } catch (error) {
+                    alert("Error al leer el archivo. Asegúrate de que es un archivo de copia de seguridad válido.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+            setIsUtilsMenuOpen(false);
+        };
+
+        const confirmRestore = () => {
+            if(restoreData) {
+                restoreCourses(restoreData);
+                setRestoreData(null);
+            }
+        };
+
+        return (
+          <div className="p-4 sm:p-6 lg:p-8 min-h-screen">
+            <header className="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 className="text-4xl font-bold font-serif text-slate-800">Mis Cursos</h1>
+                    <p className="text-slate-500 mt-1">Selecciona un curso o crea uno nuevo.</p>
+                </div>
+                 <div className="relative" ref={utilsMenuRef}>
+                      <button onClick={() => setIsUtilsMenuOpen(prev => !prev)} className="bg-white border border-slate-300 text-slate-600 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2 px-3 py-2 text-sm font-medium">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          <span className="hidden sm:inline">Utilidades</span>
+                      </button>
+                      {isUtilsMenuOpen && (
+                          <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-slate-200 z-30 py-1">
+                              <button onClick={handleCreateBackup} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                <span>Crear Copia (JSON)</span>
+                              </button>
+                               <button onClick={() => fileInputRef.current?.click()} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                <span>Cargar Copia (JSON)</span>
+                              </button>
+                              <input type="file" ref={fileInputRef} onChange={handleLoadBackup} accept=".json" className="hidden" />
+                          </div>
+                      )}
+                  </div>
+            </header>
+            
+            {courses.length === 0 ? (
+              <div className="text-center py-20 flex flex-col items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <h2 className="text-2xl font-semibold font-serif mb-2">¡Bienvenido!</h2>
+                  <p className="text-slate-500 mb-6">Parece que aún no tienes cursos. ¡Empecemos!</p>
+                  <button onClick={handleOpenCreateModal} className="px-6 py-3 text-white bg-sky-500 rounded-lg shadow-md hover:bg-sky-600 transition-transform transform hover:scale-105">
+                      Crear mi primer curso
+                  </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+                {courses.map(course => (
+                  <div key={course.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden transition-all duration-200 transform hover:-translate-y-1 hover:shadow-md flex flex-col">
+                    <div className="p-4 cursor-pointer flex-grow" onClick={() => onSelectCourse(course)}>
+                      <div className="tracking-wide text-xs text-sky-600 font-semibold">{course.grade} - {course.year}</div>
+                      <h3 className="block mt-1 text-md leading-tight font-bold font-serif text-slate-800">{course.name}</h3>
+                      <p className="mt-2 text-sm text-slate-500">{course.students.length} estudiante(s)</p>
+                    </div>
+                    <div className="px-2 py-1 bg-slate-50 flex justify-end gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(course); }} className="p-2 text-slate-400 hover:text-sky-600 rounded-full hover:bg-slate-200 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeletingCourseId(course.id); }} className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-slate-200 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={handleOpenCreateModal} className="fixed bottom-6 right-6 bg-sky-500 text-white p-4 rounded-full shadow-lg hover:bg-sky-600 transition-transform transform hover:scale-110">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            </button>
+            
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCourse ? 'Editar Curso' : 'Crear Nuevo Curso'}>
+              <CourseForm onSave={handleSaveCourse} onClose={() => setIsModalOpen(false)} course={editingCourse} />
+            </Modal>
+            <Modal isOpen={!!deletingCourseId} onClose={() => setDeletingCourseId(null)} title="Confirmar Eliminación">
+              <p>¿Estás seguro de que quieres eliminar este curso? Esta acción no se puede deshacer.</p>
+              <div className="flex justify-end gap-3 pt-6">
+                  <button onClick={() => setDeletingCourseId(null)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                  <button onClick={confirmDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">Eliminar</button>
+              </div>
+            </Modal>
+            <Modal isOpen={!!restoreData} onClose={() => setRestoreData(null)} title="Confirmar Carga de Copia">
+                <div>
+                    <p className="text-sm text-slate-600 mb-4">Estás a punto de reemplazar todos tus datos actuales con los del archivo de copia de seguridad. </p>
+                    <p className="font-bold text-red-600">Esta acción no se puede deshacer.</p>
+                    <p className="mt-4">¿Deseas continuar?</p>
+                </div>
+                <div className="flex justify-end gap-3 pt-6">
+                    <button onClick={() => setRestoreData(null)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                    <button onClick={confirmRestore} className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600 transition-colors">Sí, cargar copia</button>
+                </div>
+            </Modal>
+          </div>
+        );
+      };
+
+      // From: components/GradebookView.tsx
+      const StudentForm = ({onSave, onClose}) => {
+          const [name, setName] = useState('');
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              if (name.trim()) {
+                  onSave(name.trim());
+                  setName('');
+                  onClose();
+              }
+          };
+          return (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                      <label htmlFor="studentName" className="block text-sm font-medium text-slate-600">Nombre del Estudiante</label>
+                      <input type="text" id="studentName" value={name} onChange={e => setName(e.target.value)} autoFocus required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4">
+                      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600 transition-colors">Añadir Estudiante</button>
+                  </div>
+              </form>
+          );
+      };
+
+      const ActivityForm = ({onSave, onClose}) => {
+          const [name, setName] = useState('');
+          const [weight, setWeight] = useState(10);
+          const [description, setDescription] = useState('');
+          
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              if (name.trim() && weight >= 0) {
+                  onSave(name.trim(), weight, description.trim());
+                  onClose();
+              }
+          };
+          return (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                      <label htmlFor="activityName" className="block text-sm font-medium text-slate-600">Nombre de la Actividad</label>
+                      <input type="text" id="activityName" value={name} onChange={e => setName(e.target.value)} autoFocus required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+                  </div>
+                  <div>
+                      <label htmlFor="activityWeight" className="block text-sm font-medium text-slate-600">Ponderación (%)</label>
+                      <input type="number" id="activityWeight" value={weight} onChange={e => setWeight(Math.max(0, Number(e.target.value)))} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500" />
+                  </div>
+                  <div>
+                      <label htmlFor="activityDescription" className="block text-sm font-medium text-slate-600">Descripción (Opcional)</label>
+                      <textarea id="activityDescription" value={description} onChange={e => setDescription(e.target.value)} rows="3" className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500"></textarea>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4">
+                      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600 transition-colors">Añadir Actividad</button>
+                  </div>
+              </form>
+          );
+      };
+
+      const QuickNotesForm = ({onSave, onClose, currentNotes}) => {
+          const [note1, setNote1] = useState(currentNotes[0]);
+          const [note2, setNote2] = useState(currentNotes[1]);
+          const [note3, setNote3] = useState(currentNotes[2]);
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              onSave([note1, note2, note3]);
+              onClose();
+          };
+          return (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                  <p className="text-sm text-slate-500">Define 3 valores para calificar rápidamente con un solo clic.</p>
+                  <div className="flex gap-4">
+                      <input type="number" value={note1} onChange={e => setNote1(Number(e.target.value))} className="w-full text-center px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm" />
+                      <input type="number" value={note2} onChange={e => setNote2(Number(e.target.value))} className="w-full text-center px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm" />
+                      <input type="number" value={note3} onChange={e => setNote3(Number(e.target.value))} className="w-full text-center px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm" />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4">
+                      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600 transition-colors">Guardar Notas</button>
+                  </div>
+              </form>
+          );
+      };
+
+      const GradebookView = ({ course, onBack, addStudent, deleteStudent, addActivity, deleteActivity, updateNote, updateQuickNotes }) => {
+        const [activeTrimester, setActiveTrimester] = useState('1');
+        const [openModal, setOpenModal] = useState(null);
+        const [riskThreshold, setRiskThreshold] = useState(60);
+        const [itemToDelete, setItemToDelete] = useState(null);
+        const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+        const fileInputRef = useRef(null);
+        const actionsMenuRef = useRef(null);
+
+        const currentTrimesterData = course.trimesters[activeTrimester];
+        
+        const calculateAverageForRisk = useCallback((studentId) => {
+          const notes = currentTrimesterData.notes[studentId] || {};
+          let weightedSum = 0;
+          let totalWeightUsed = 0;
+          currentTrimesterData.activities.forEach(activity => {
+            const note = notes[activity.id];
+            if (note !== null && note !== undefined) {
+              weightedSum += Number(note) * (activity.weight / 100);
+              totalWeightUsed += activity.weight / 100;
+            }
+          });
+          return totalWeightUsed > 0 ? (weightedSum / totalWeightUsed) : 0;
+        }, [currentTrimesterData]);
+
+        const calculateSum = useCallback((studentId) => {
+          const notes = currentTrimesterData.notes[studentId] || {};
+          let totalSum = 0;
+          currentTrimesterData.activities.forEach(activity => {
+            const note = notes[activity.id];
+            if (note !== null && note !== undefined) {
+              totalSum += Number(note);
+            }
+          });
+          return totalSum.toFixed(2);
+        }, [currentTrimesterData]);
+        
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
+                    setIsActionsMenuOpen(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, []);
+
+        const handleImportStudents = (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              const text = e.target?.result;
+              const studentNames = parseStudentsFromCsv(text);
+              studentNames.forEach(name => addStudent(course.id, name));
+          };
+          reader.readAsText(file);
+          event.target.value = '';
+        };
+        
+        const confirmDeletion = () => {
+            if (itemToDelete) {
+                if (itemToDelete.type === 'student') {
+                    deleteStudent(course.id, itemToDelete.id);
+                } else {
+                    deleteActivity(course.id, activeTrimester, itemToDelete.id);
+                }
+                setItemToDelete(null);
+                setOpenModal(null);
+            }
+        };
+
+        const studentsAtRisk = useMemo(() => course.students.filter(s => calculateAverageForRisk(s.id) < riskThreshold), [course.students, calculateAverageForRisk, riskThreshold]);
+        const studentsWithMissingGrades = useMemo(() => {
+          return course.students.map(student => {
+              const missing = currentTrimesterData.activities.filter(activity => {
+                  const note = currentTrimesterData.notes[student.id]?.[activity.id];
+                  return note === null || note === undefined;
+              });
+              return { student, missingActivities: missing };
+          }).filter(item => item.missingActivities.length > 0);
+        }, [course.students, currentTrimesterData]);
+        
+        const ActionMenuItem = ({ onClick, icon, children }) => (
+            <button onClick={() => { onClick(); setIsActionsMenuOpen(false); }} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                {icon}
+                <span>{children}</span>
+            </button>
+        );
+        
+        return (
+          <div className="p-4 sm:p-6 lg:p-8">
+            <header className="mb-4">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <div className="flex-grow">
+                        <button onClick={onBack} className="flex items-center gap-2 text-sky-600 hover:underline mb-2 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l--7-7m0 0l7-7m-7 7h18" /></svg>
+                            Mis Cursos
+                        </button>
+                        <h1 className="text-2xl font-bold font-serif text-slate-800 truncate">{course.name}</h1>
+                        <p className="text-sm text-slate-500">{course.grade} - {course.year}</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <nav className="flex space-x-1 bg-slate-200/60 p-1 rounded-full">
+                            {(['1', '2', '3', '4']).map(num => (
+                                <button key={num} onClick={() => setActiveTrimester(num)}
+                                    className={`w-10 h-8 text-center whitespace-nowrap rounded-full font-medium text-xs transition-colors ${activeTrimester === num ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500 hover:bg-slate-300/50 hover:text-slate-700'}`}>
+                                    {num}B
+                                </button>
+                            ))}
+                        </nav>
+                        <button onClick={() => setOpenModal('addStudent')} title="Añadir Estudiante" className="bg-white border border-slate-300 text-slate-600 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center h-10 w-10">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                        </button>
+                        <button onClick={() => setOpenModal('addActivity')} title="Añadir Actividad" className="bg-white border border-slate-300 text-slate-600 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center h-10 w-10">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                        </button>
+                        <div className="relative" ref={actionsMenuRef}>
+                            <button onClick={() => setIsActionsMenuOpen(prev => !prev)} className="bg-white border border-slate-300 text-slate-600 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center h-10 w-10">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                            </button>
+                            {isActionsMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-slate-200 z-30 py-1">
+                                    <ActionMenuItem onClick={() => setOpenModal('riskReport')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}>Reporte: En Riesgo</ActionMenuItem>
+                                    <ActionMenuItem onClick={() => setOpenModal('missingGrades')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}>Reporte: Faltantes</ActionMenuItem>
+                                    <div className="border-t my-1 border-slate-200"></div>
+                                    <ActionMenuItem onClick={() => setOpenModal('quickNotes')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}>Config: Notas Rápidas</ActionMenuItem>
+                                    <ActionMenuItem onClick={() => fileInputRef.current?.click()} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>}>Importar CSV</ActionMenuItem>
+                                    <ActionMenuItem onClick={() => exportToCsv(course, currentTrimesterData, activeTrimester)} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}>Exportar CSV</ActionMenuItem>
+                                    <input type="file" ref={fileInputRef} onChange={handleImportStudents} accept=".csv" className="hidden" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-slate-200">
+              <table className="w-full min-w-[600px] text-sm text-left text-slate-500">
+                <thead className="text-xs text-slate-600 uppercase bg-slate-100">
+                  <tr>
+                    <th scope="col" className="sticky left-0 bg-slate-100 px-4 py-3 w-40 sm:w-48 z-20">Estudiante</th>
+                    {currentTrimesterData.activities.map(activity => (
+                        <th key={activity.id} scope="col" className="px-4 py-3 text-center group relative" title={activity.description}>
+                            <div className="flex items-center justify-center gap-1">
+                               <span>{activity.name} <br/><span className="font-normal normal-case">({activity.weight}%)</span></span>
+                               {activity.description && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+                               <button onClick={() => { setItemToDelete({type: 'activity', id: activity.id }); setOpenModal('confirmDeleteActivity'); }} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                               </button>
+                            </div>
+                        </th>
+                    ))}
+                    <th scope="col" className="sticky right-0 bg-slate-100 px-4 py-3 text-center z-10">Suma Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {course.students.map(student => (
+                    <tr key={student.id} className="border-b border-slate-200 group">
+                      <th scope="row" className="sticky left-0 bg-white group-hover:bg-slate-50 px-4 py-2 font-medium text-slate-800 whitespace-nowrap flex justify-between items-center w-40 sm:w-48 z-10 transition-colors">
+                        {student.name}
+                        <button onClick={() => { setItemToDelete({type: 'student', id: student.id }); setOpenModal('confirmDeleteStudent'); }} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </th>
+                      {currentTrimesterData.activities.map(activity => (
+                        <td key={activity.id} className="px-2 py-1 align-middle bg-white group-hover:bg-slate-50 transition-colors">
+                            <div className="flex flex-col items-center">
+                                <input type="number"
+                                        className="w-20 text-center bg-transparent border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500 placeholder-slate-400"
+                                        value={currentTrimesterData.notes[student.id]?.[activity.id] ?? ''}
+                                        onChange={e => updateNote(course.id, activeTrimester, student.id, activity.id, e.target.value === '' ? null : Number(e.target.value))}
+                                        placeholder="-"
+                                />
+                                <div className="flex gap-1 mt-1">
+                                    {course.quickNotes.map(qn => (
+                                        <button key={qn} onClick={() => updateNote(course.id, activeTrimester, student.id, activity.id, qn)}
+                                                className="w-8 h-5 text-xs bg-slate-200 hover:bg-sky-200 rounded transition-colors">
+                                            {qn}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </td>
+                      ))}
+                      <td className="sticky right-0 bg-white group-hover:bg-slate-50 px-4 py-2 text-center align-middle font-medium text-slate-700 z-10 transition-colors">
+                        {calculateSum(student.id)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {course.students.length === 0 && <div className="text-center p-8 text-slate-500">Añade tu primer estudiante para empezar.</div>}
+            </div>
+
+            <Modal isOpen={openModal === 'addStudent'} onClose={() => setOpenModal(null)} title="Añadir Nuevo Estudiante">
+                <StudentForm onSave={(name) => addStudent(course.id, name)} onClose={() => setOpenModal(null)} />
+            </Modal>
+            <Modal isOpen={openModal === 'addActivity'} onClose={() => setOpenModal(null)} title="Añadir Nueva Actividad">
+                <ActivityForm onSave={(name, weight, description) => addActivity(course.id, activeTrimester, name, weight, description)} onClose={() => setOpenModal(null)} />
+            </Modal>
+            <Modal isOpen={openModal === 'quickNotes'} onClose={() => setOpenModal(null)} title="Configurar Notas Rápidas">
+                <QuickNotesForm onSave={(notes) => updateQuickNotes(course.id, notes)} onClose={() => setOpenModal(null)} currentNotes={course.quickNotes} />
+            </Modal>
+            <Modal isOpen={openModal === 'riskReport'} onClose={() => setOpenModal(null)} title="Alumnos en Riesgo">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <label htmlFor="riskThreshold" className="text-sm font-medium">Promedio menor a:</label>
+                        <input type="number" id="riskThreshold" value={riskThreshold} onChange={e => setRiskThreshold(Number(e.target.value))} className="w-20 px-2 py-1 bg-white border border-slate-300 rounded-md" />
+                    </div>
+                    <ul className="divide-y divide-slate-200 max-h-60 overflow-y-auto">
+                        {studentsAtRisk.length > 0 ? studentsAtRisk.map(s => (
+                            <li key={s.id} className="py-3 flex justify-between items-center">
+                                <span>{s.name}</span>
+                                <span className="font-bold text-red-500">{calculateAverageForRisk(s.id).toFixed(2)}</span>
+                            </li>
+                        )) : <p className="text-slate-500 py-4 text-center">¡Felicidades! Ningún estudiante está en riesgo.</p>}
+                    </ul>
+                </div>
+            </Modal>
+            <Modal isOpen={openModal === 'missingGrades'} onClose={() => setOpenModal(null)} title="Reporte de Notas Faltantes">
+                <ul className="divide-y divide-slate-200 max-h-80 overflow-y-auto">
+                    {studentsWithMissingGrades.length > 0 ? studentsWithMissingGrades.map(item => (
+                        <li key={item.student.id} className="py-3">
+                            <h4 className="font-semibold text-slate-800">{item.student.name}</h4>
+                            <p className="text-sm text-slate-500">Falta calificar: {item.missingActivities.map(a => a.name).join(', ')}</p>
+                        </li>
+                    )) : <p className="text-slate-500 py-4 text-center">¡Excelente! Todos los estudiantes tienen sus notas al día.</p>}
+                </ul>
+            </Modal>
+            <Modal isOpen={openModal === 'confirmDeleteStudent' || openModal === 'confirmDeleteActivity'} onClose={() => setOpenModal(null)} title="Confirmar Eliminación">
+                <p>¿Estás seguro? Esta acción eliminará el elemento y todas sus notas asociadas. No se puede deshacer.</p>
+                <div className="flex justify-end gap-3 pt-6">
+                    <button onClick={() => setOpenModal(null)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">Cancelar</button>
+                    <button onClick={confirmDeletion} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">Eliminar</button>
+                </div>
+            </Modal>
+          </div>
+        );
+      };
+
+      // From: App.tsx
+      const App = () => {
+        const { 
+          courses, isDataLoaded, addCourse, updateCourse, deleteCourse,
+          addStudent, deleteStudent, addActivity, deleteActivity, updateNote, updateQuickNotes,
+          restoreCourses, STORAGE_KEY
+        } = useAppData();
+        
+        const [selectedCourse, setSelectedCourse] = useState(null);
+
+        const handleSelectCourse = (course) => {
+          setSelectedCourse(course);
+        };
+        
+        const handleBackToCourses = () => {
+          setSelectedCourse(null);
+        };
+
+        const currentCourse = courses.find(c => c.id === selectedCourse?.id) || null;
+
+        if (!isDataLoaded) {
+          return (
+            <div className="flex justify-center items-center min-h-screen">
+              <div className="text-xl font-medium text-slate-600">Cargando datos...</div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="antialiased">
+            {currentCourse ? (
+              <GradebookView
+                key={currentCourse.id}
+                course={currentCourse}
+                onBack={handleBackToCourses}
+                addStudent={addStudent}
+                deleteStudent={deleteStudent}
+                addActivity={addActivity}
+                deleteActivity={deleteActivity}
+                updateNote={updateNote}
+                updateQuickNotes={updateQuickNotes}
+              />
+            ) : (
+              <CourseListView
+                courses={courses}
+                onSelectCourse={handleSelectCourse}
+                addCourse={addCourse}
+                updateCourse={updateCourse}
+                deleteCourse={deleteCourse}
+                restoreCourses={restoreCourses}
+                STORAGE_KEY={STORAGE_KEY}
+              />
+            )}
+          </div>
+        );
+      };
+
+      // From: index.tsx
+      const rootElement = document.getElementById('root');
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+</body>
+</html>
+
+

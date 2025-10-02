@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notas Rápidas</title>
+    <!-- Se incluye Tailwind CSS para un diseño limpio y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Se incluye la nueva fuente "Lora" de Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados y animaciones */
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Evita el scroll en el body */
+        }
+        body {
+            font-family: 'Lora', serif; /* Fuente más elegante */
+            background-color: #f8fafc; /* Un gris muy claro (slate-50) */
+        }
+        
+        #app-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #taskList {
+            overflow-y: auto; /* Permite scroll solo en la lista de tareas */
+            flex-grow: 1;
+            scroll-behavior: smooth; /* Desplazamiento suave */
+        }
+
+        /* Animación para cuando una tarea es completada */
+        .task-item.removing {
+            transition: all 0.4s ease-in-out;
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        /* Estilo del botón de completar (círculo a la derecha) */
+        .complete-checkbox {
+            min-width: 24px;
+            height: 24px;
+            border: 2px solid #94a3b8; /* gris (slate-400) */
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .complete-checkbox:hover {
+             border-color: #3b82f6;
+        }
+
+        .complete-checkbox.checked {
+            background-color: #3b82f6; /* azul (blue-500) */
+            border-color: #3b82f6;
+        }
+
+        /* Oculta las barras de scroll por defecto, pero permite el scroll */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent; /* hace el scrollbar invisible en webkit */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container" class="w-full max-w-3xl mx-auto">
+        
+        <!-- Contenedor de la lista de tareas (ocupa el espacio superior) -->
+        <div id="taskList" class="p-4">
+            <!-- Las tareas se renderizarán aquí -->
+        </div>
+
+        <!-- Formulario para agregar nuevas tareas, fijo en la parte inferior -->
+        <form id="taskForm" class="flex items-center gap-3 p-4 border-t border-slate-200 bg-white/80 backdrop-blur-sm mt-auto">
+            <input 
+                type="text" 
+                id="taskInput" 
+                placeholder="Escribe algo..."
+                class="flex-grow bg-transparent text-lg text-slate-800 focus:outline-none"
+                autocomplete="off"
+            >
+            <button 
+                type="submit"
+                class="bg-blue-600 text-white font-medium py-2 px-5 rounded-full hover:bg-blue-700 transition-colors shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+                Agregar
+            </button>
+        </form>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const taskForm = document.getElementById('taskForm');
+            const taskInput = document.getElementById('taskInput');
+            const taskList = document.getElementById('taskList');
+            
+            let tasks = []; // Array que será la única fuente de verdad
+
+            /**
+             * Renderiza toda la lista de tareas en el DOM a partir del array 'tasks'.
+             */
+            function renderTasks() {
+                taskList.innerHTML = ''; // Limpia la lista actual
+                tasks.forEach(task => {
+                    const taskItem = document.createElement('div');
+                    // CAMBIO: Se reduce el padding a py-2 y el gap a gap-3 para un look más compacto.
+                    taskItem.className = 'task-item flex items-start gap-3 py-2 border-b border-slate-200';
+                    taskItem.dataset.id = task.id;
+
+                    // CAMBIO: Se quitan los márgenes (pt-1, mt-1) y se añade 'break-words' para asegurar el ajuste de texto.
+                    // La alineación ahora es controlada puramente por 'items-start' en el div padre.
+                    taskItem.innerHTML = `
+                        <span class="text-slate-400 text-sm font-medium w-6 text-right">${task.number}</span>
+                        <p class="flex-grow text-slate-700 text-lg break-words">${task.text}</p>
+                        <div class="complete-checkbox flex-shrink-0"></div>
+                    `;
+
+                    // Evento para completar la tarea
+                    const checkbox = taskItem.querySelector('.complete-checkbox');
+                    checkbox.addEventListener('click', () => {
+                        checkbox.classList.add('checked');
+                        taskItem.classList.add('removing');
+                        
+                        // Espera a que termine la animación para eliminar la tarea y re-renderizar
+                        setTimeout(() => {
+                            removeTask(task.id);
+                        }, 400);
+                    });
+
+                    taskList.appendChild(taskItem);
+                });
+                
+                // Hace scroll hacia abajo para mostrar la última tarea si es necesario
+                taskList.scrollTop = taskList.scrollHeight;
+            }
+            
+            /**
+             * Agrega una nueva tarea al array 'tasks' y actualiza la vista.
+             * @param {string} text - El texto de la nueva tarea.
+             */
+            function addTask(text) {
+                const newTask = {
+                    id: Date.now(),
+                    text: text,
+                    number: tasks.length + 1 // El número es simplemente la nueva longitud
+                };
+                tasks.push(newTask);
+                saveAndRender();
+            }
+
+            /**
+             * Elimina una tarea del array, renumera las restantes y actualiza la vista.
+             * @param {number} id - El ID de la tarea a eliminar.
+             */
+            function removeTask(id) {
+                tasks = tasks.filter(task => task.id !== id);
+                // Renumera las tareas restantes
+                tasks.forEach((task, index) => {
+                    task.number = index + 1;
+                });
+                saveAndRender();
+            }
+
+            /**
+             * Guarda el estado actual en localStorage y vuelve a renderizar la lista.
+             */
+            function saveAndRender() {
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                renderTasks();
+            }
+
+            /**
+             * Carga las tareas desde localStorage al iniciar la aplicación.
+             */
+            function loadTasks() {
+                const storedTasks = localStorage.getItem('tasks');
+                if (storedTasks) {
+                    tasks = JSON.parse(storedTasks);
+                }
+                renderTasks();
+            }
+
+            // Manejador del formulario
+            taskForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const taskText = taskInput.value.trim();
+                if (taskText) {
+                    addTask(taskText);
+                    taskInput.value = '';
+                }
+            });
+
+            // Carga inicial
+            loadTasks();
+        });
+    </script>
+</body>
+</html>
+
+

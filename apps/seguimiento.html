@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento de Alumnos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Librerías para exportar a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        /* Estilo para la columna fija de alumnos */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+        /* Animación suave para modales */
+        .modal-backdrop {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: all 0.3s ease;
+        }
+        /* Ocultar scrollbar, pero mantener funcionalidad */
+        .table-container::-webkit-scrollbar {
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1; /* slate-300 */
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="h-screen antialiased text-slate-800">
+
+    <div id="app" class="h-full flex flex-col">
+        <!-- Encabezado -->
+        <header class="bg-white/80 backdrop-blur-sm border-b border-slate-200 p-4 shadow-sm">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <h1 class="text-xl font-bold text-slate-700">Seguimiento</h1>
+                <div class="flex items-center gap-2">
+                    <button id="addStudentBtn" class="bg-cyan-500 text-white font-medium text-sm py-1 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors">Añadir Alumno</button>
+                    <button id="addActivityBtn" class="bg-blue-500 text-white font-medium text-sm py-1 px-3 rounded-md shadow hover:bg-blue-600 transition-colors">Añadir Actividad</button>
+                    <button id="exportCsvBtn" class="bg-gray-600 text-white font-medium text-sm py-1 px-3 rounded-md shadow hover:bg-gray-700 transition-colors">Exportar CSV</button>
+                    <button id="exportPdfBtn" class="bg-red-500 text-white font-medium text-sm py-1 px-3 rounded-md shadow hover:bg-red-600 transition-colors">Exportar PDF</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenedor de la Tabla -->
+        <main id="table-container" class="flex-grow p-4 overflow-x-auto table-container">
+             <div id="trackerGrid" class="bg-white rounded-lg shadow-md overflow-hidden">
+                <!-- El contenido se generará aquí -->
+             </div>
+             <div id="emptyState" class="hidden text-center py-20">
+                <p class="text-slate-500 text-lg">Comienza añadiendo tu primer alumno para crear la lista.</p>
+             </div>
+        </main>
+    </div>
+
+    <!-- Modal para Añadir Alumno -->
+    <div id="studentModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden opacity-0">
+        <div class="modal-content bg-white rounded-lg shadow-xl p-6 w-full max-w-sm transform scale-95 opacity-0">
+            <h2 class="text-lg font-bold mb-4">Añadir Nuevo Alumno</h2>
+            <form id="studentForm">
+                <input type="text" id="studentNameInput" placeholder="Nombre completo del alumno" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" id="cancelStudent" class="bg-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-cyan-500 text-white py-2 px-4 rounded-lg hover:bg-cyan-600">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Añadir Actividad -->
+    <div id="activityModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden opacity-0">
+        <div class="modal-content bg-white rounded-lg shadow-xl p-6 w-full max-w-sm transform scale-95 opacity-0">
+            <h2 class="text-lg font-bold mb-4">Añadir Nueva Actividad</h2>
+            <form id="activityForm">
+                <input type="text" id="activityNameInput" placeholder="Título corto (Ej: Material arte)" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+                <textarea id="activityDescInput" placeholder="Descripción detallada (opcional)" class="mt-2 w-full border border-slate-300 rounded-md p-2 h-24 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" id="cancelActivity" class="bg-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const trackerGrid = document.getElementById('trackerGrid');
+            const emptyState = document.getElementById('emptyState');
+
+            // --- State Management ---
+            let state = {
+                students: [], // { id, name }
+                activities: [], // { id, title, description }
+                completion: {} // { 'studentId_activityId': true/false }
+            };
+
+            // --- Modal Logic ---
+            const studentModal = document.getElementById('studentModal');
+            const activityModal = document.getElementById('activityModal');
+            
+            function openModal(modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+                }, 10);
+            }
+
+            function closeModal(modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+
+            document.getElementById('addStudentBtn').addEventListener('click', () => openModal(studentModal));
+            document.getElementById('addActivityBtn').addEventListener('click', () => openModal(activityModal));
+            document.getElementById('cancelStudent').addEventListener('click', () => closeModal(studentModal));
+            document.getElementById('cancelActivity').addEventListener('click', () => closeModal(activityModal));
+
+            // --- Data Logic ---
+            function saveState() {
+                localStorage.setItem('trackerState', JSON.stringify(state));
+            }
+
+            function loadState() {
+                const savedState = localStorage.getItem('trackerState');
+                if (savedState) {
+                    state = JSON.parse(savedState);
+                }
+            }
+            
+            function saveAndRender() {
+                saveState();
+                render();
+            }
+
+            // --- Rendering ---
+            function render() {
+                if (state.students.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    trackerGrid.classList.add('hidden');
+                    return;
+                }
+                emptyState.classList.add('hidden');
+                trackerGrid.classList.remove('hidden');
+
+                trackerGrid.innerHTML = ''; // Clear previous content
+
+                // Header Row
+                const headerRow = document.createElement('div');
+                headerRow.className = 'flex';
+                headerRow.innerHTML += `<div class="sticky-col w-40 p-2 text-sm font-semibold bg-slate-100 border-b border-r border-slate-200">Alumno</div>`;
+                state.activities.forEach(activity => {
+                    const descriptionHtml = activity.description
+                        ? `<span class="ml-1 relative group">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <!-- CAMBIO: El globo ahora aparece debajo (top-full) para evitar ser cortado por el header -->
+                                <span class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-700 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">${activity.description}</span>
+                           </span>`
+                        : '';
+                    
+                    headerRow.innerHTML += `
+                        <div class="w-28 flex items-center justify-center p-2 text-sm font-semibold bg-slate-50 border-b border-r border-slate-200">
+                            <span class="truncate">${activity.title}</span>
+                            ${descriptionHtml}
+                        </div>`;
+                });
+                trackerGrid.appendChild(headerRow);
+
+                // Student Rows
+                state.students.forEach(student => {
+                    const studentRow = document.createElement('div');
+                    studentRow.className = 'flex';
+                    studentRow.innerHTML += `<div class="sticky-col w-40 p-2 bg-white border-b border-r border-slate-200 truncate">${student.name}</div>`;
+                    
+                    state.activities.forEach(activity => {
+                        const completionKey = `${student.id}_${activity.id}`;
+                        const isChecked = state.completion[completionKey] || false;
+                        studentRow.innerHTML += `
+                            <div class="w-28 flex justify-center items-center p-2 border-b border-r border-slate-200">
+                                <input type="checkbox" data-key="${completionKey}" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" ${isChecked ? 'checked' : ''}>
+                            </div>
+                        `;
+                    });
+                    trackerGrid.appendChild(studentRow);
+                });
+            }
+            
+            // --- Event Handlers ---
+            document.getElementById('studentForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const input = document.getElementById('studentNameInput');
+                if (input.value.trim()){
+                    state.students.push({ id: Date.now(), name: input.value.trim() });
+                    input.value = '';
+                    closeModal(studentModal);
+                    saveAndRender();
+                }
+            });
+
+            document.getElementById('activityForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const titleInput = document.getElementById('activityNameInput');
+                const descInput = document.getElementById('activityDescInput');
+                if(titleInput.value.trim()){
+                    state.activities.unshift({
+                        id: Date.now(),
+                        title: titleInput.value.trim(),
+                        description: descInput.value.trim()
+                    });
+                    titleInput.value = '';
+                    descInput.value = '';
+                    closeModal(activityModal);
+                    saveAndRender();
+                }
+            });
+
+            trackerGrid.addEventListener('change', (e) => {
+                if (e.target.type === 'checkbox') {
+                    const key = e.target.dataset.key;
+                    state.completion[key] = e.target.checked;
+                    saveState(); // No need to re-render for a checkbox change
+                }
+            });
+
+            // --- Export Logic ---
+            function exportToCsv() {
+                let csvContent = "data:text/csv;charset=utf-8,";
+                let header = ["Alumno", ...state.activities.map(a => a.title)].join(",");
+                csvContent += header + "\r\n";
+
+                state.students.forEach(student => {
+                    let row = [student.name];
+                    state.activities.forEach(activity => {
+                        const key = `${student.id}_${activity.id}`;
+                        row.push(state.completion[key] ? "Sí" : "No");
+                    });
+                    csvContent += row.join(",") + "\r\n";
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "seguimiento_alumnos.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            function exportToPdf() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: "landscape" });
+
+                const head = [["Alumno", ...state.activities.map(a => a.title)]];
+                const body = state.students.map(student => {
+                    const row = [student.name];
+                    state.activities.forEach(activity => {
+                        const key = `${student.id}_${activity.id}`;
+                        row.push(state.completion[key] ? "Sí" : "No");
+                    });
+                    return row;
+                });
+                
+                doc.autoTable({
+                    head: head,
+                    body: body,
+                    startY: 10,
+                    styles: { font: "Inter", fontSize: 8 },
+                    headStyles: { fillColor: [30, 41, 59] }, // slate-800
+                });
+
+                doc.save("seguimiento_alumnos.pdf");
+            }
+            
+            document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
+            document.getElementById('exportPdfBtn').addEventListener('click', exportToPdf);
+
+            // --- Initial Load ---
+            loadState();
+            render();
+        });
+    </script>
+</body>
+</html>
+
+

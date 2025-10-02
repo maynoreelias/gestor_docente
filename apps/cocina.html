@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Turnos de Cocina v4</title>
+    <style>
+        :root {
+            --color-bg: #f7f9fc;
+            --color-surface: #ffffff;
+            --color-primary: #0d6efd;
+            --color-secondary: #6c757d;
+            --color-success: #198754;
+            --color-warning: #ffc107;
+            --color-info: #0dcaf0;
+            --color-danger: #dc3545;
+            --color-text: #212529;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        h2 {
+            color: var(--color-primary);
+            padding-bottom: 10px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            font-size: 1.25rem;
+        }
+        .tab-header {
+            background-color: var(--color-bg);
+            padding: 10px 25px 0 25px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .tab-btn {
+            padding: 8px 16px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--color-secondary);
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+        }
+        .main-content { padding: 5px 25px 25px 25px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        #summary-section { border-bottom: 1px solid var(--border-color); margin-bottom: 20px; padding-top: 15px; }
+        #summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-bottom: 20px;
+        }
+        .summary-item {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .summary-item strong {
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        .summary-item span {
+            color: var(--color-secondary);
+        }
+        .summary-item .count-c {
+            color: var(--color-success);
+            font-weight: 600;
+        }
+        .summary-item .count-p {
+            color: #E65100;
+            font-weight: 600;
+        }
+
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            padding: 20px 0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        label { font-weight: 600; color: var(--color-secondary); font-size: 0.9rem; margin-bottom: -5px; }
+        input[type="text"], select {
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 18px; border-radius: 6px; border: none; background-color: var(--color-primary);
+            color: white; font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s; text-align: center;
+        }
+        button:hover { opacity: 0.85; }
+        button.secondary { background-color: var(--color-secondary); }
+        button.success { background-color: var(--color-success); }
+        button.info { background-color: var(--color-info); }
+
+        .filters-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            background-color: var(--color-bg);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        .filters-row select { min-width: 180px; }
+
+        .table-wrapper { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { background-color: var(--color-bg); }
+        /* Sticky first column */
+        th:first-child, td:first-child { 
+            position: sticky; 
+            left: 0; 
+            z-index: 1; 
+        }
+        th:first-child {
+            background-color: var(--color-bg); 
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        td:first-child { 
+            font-weight: 500; 
+            background-color: var(--color-surface);
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        /* Compact other columns */
+        th:nth-child(2), td:nth-child(2),
+        th:nth-child(3), td:nth-child(3) {
+            width: 1%;
+            white-space: nowrap;
+        }
+        
+        .group-assign-cell { display: flex; gap: 6px; align-items: center; }
+        .group-assign-btn {
+            width: 28px; height: 28px; line-height: 28px; text-align: center;
+            border-radius: 50%; border: 1px solid var(--border-color);
+            cursor: pointer; font-weight: 500;
+            transition: all 0.2s;
+        }
+        .group-assign-btn:hover { background-color: #e9ecef; }
+        .group-assign-btn.active { background-color: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+        .status { padding: 6px 12px; border-radius: 16px; font-weight: 500; cursor: pointer; text-align: center; display: inline-block; min-width: 90px; }
+        .status-pendiente { background-color: rgba(255, 152, 0, 0.2); color: #E65100; }
+        .status-cumplido { background-color: rgba(25, 135, 84, 0.15); color: var(--color-success); }
+        
+        .delete-btn { color: var(--color-danger); cursor: pointer; font-weight: 500; padding: 4px 8px; border-radius: 4px; }
+        .delete-btn.confirm { background-color: var(--color-danger); color: white; }
+
+        #notification {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            background-color: var(--color-secondary); color: white; padding: 12px 20px;
+            border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 1000; transition: bottom 0.5s ease-in-out;
+        }
+        #notification.show { bottom: 20px; }
+        #notification.success { background-color: var(--color-success); }
+        #notification.error { background-color: var(--color-danger); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tab-header">
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="showTab('table-view')">Alumnos</button>
+                <button class="tab-btn" onclick="showTab('main-view')">Gestión</button>
+            </div>
+        </div>
+        <div class="main-content">
+            
+            <div id="main-view" class="tab-content">
+                <div id="summary-section">
+                    <h2>Resumen</h2>
+                    <div id="summary"></div>
+                </div>
+                <h2>Herramientas</h2>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label for="student-name">Nuevo Alumno</label>
+                        <input type="text" id="student-name" placeholder="Nombre completo del alumno">
+                        <label for="turn-name">Nuevo Turno</label>
+                        <input type="text" id="turn-name" placeholder="Ej: Turno 1: Abril">
+                        <button onclick="addTurn()">Agregar Turno</button>
+                    </div>
+                    <div class="control-group">
+                        <label>Alumnos (CSV)</label>
+                        <button class="info" onclick="importCSV()">Importar</button>
+                        <button class="info" onclick="exportCSV()">Exportar</button>
+                    </div>
+                    <div class="control-group">
+                        <label>Copia de Seguridad</label>
+                        <button class="success" onclick="exportJSON()">Guardar</button>
+                        <button class="secondary" onclick="importJSON()">Cargar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="table-view" class="tab-content active">
+                <div class="filters-row">
+                    <select id="group-filter" onchange="renderTable()"></select>
+                    <select id="status-filter-turn" onchange="renderTable()"></select>
+                    <select id="status-filter-value" onchange="renderTable()">
+                        <option value="all">Todos los Estados</option>
+                        <option value="pendiente">Pendientes</option>
+                        <option value="cumplido">Cumplidos</option>
+                    </select>
+                </div>
+                <div class="table-wrapper">
+                    <table id="main-table">
+                        <thead><tr id="table-header"></tr></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification"></div>
+    <input type="file" id="import-csv-file" style="display: none;" accept=".csv,.txt">
+    <input type="file" id="import-json-file" style="display: none;" accept=".json">
+
+    <script>
+        let students = [];
+        let turns = [];
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification show ${type}`;
+            setTimeout(() => { notification.classList.remove('show'); }, 3000);
+        }
+
+        function saveData() { localStorage.setItem('cookingRotaDataV4', JSON.stringify({ students, turns })); }
+        function loadData() {
+            const data = localStorage.getItem('cookingRotaDataV4');
+            if (data) {
+                const parsedData = JSON.parse(data);
+                students = (parsedData.students || []).map(s => ({...s, isDeleting: false})); // Ensure isDeleting is reset on load
+                turns = parsedData.turns || [];
+            }
+            renderAll();
+        }
+        
+        function addStudent() {
+            const input = document.getElementById('student-name');
+            const name = input.value.trim();
+            if (name) {
+                const newStudent = { id: Date.now(), studentName: name, group: 0, statuses: {}, isDeleting: false };
+                turns.forEach(turn => newStudent.statuses[turn.id] = 'pendiente');
+                students.push(newStudent);
+                input.value = '';
+                saveData();
+                renderAll();
+                showNotification(`'${name}' agregado.`, 'success');
+            } else { showNotification('Por favor, ingresa un nombre.', 'error'); }
+        }
+        document.getElementById('student-name').addEventListener('keydown', e => e.key === 'Enter' && addStudent());
+        document.getElementById('turn-name').addEventListener('keydown', e => e.key === 'Enter' && addTurn());
+
+        function deleteStudent(studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (!student) return;
+
+            if (student.isDeleting) {
+                students = students.filter(s => s.id !== studentId);
+                saveData();
+                renderAll();
+                showNotification('Alumno eliminado.', 'info');
+            } else {
+                students.forEach(s => s.isDeleting = false);
+                student.isDeleting = true;
+                renderTable();
+                setTimeout(() => {
+                    if (student.isDeleting) {
+                        student.isDeleting = false;
+                        renderTable();
+                    }
+                }, 3000);
+            }
+        }
+        
+        function updateStudentGroup(studentId, newGroup) {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                student.group = parseInt(newGroup, 10);
+                saveData();
+                renderTable();
+                updateDynamicFilters();
+            }
+        }
+
+        function addTurn() {
+            const input = document.getElementById('turn-name');
+            const name = input.value.trim();
+            if (name) {
+                const newTurn = { id: Date.now(), name: name };
+                turns.push(newTurn);
+                students.forEach(s => s.statuses[newTurn.id] = 'pendiente');
+                input.value = '';
+                saveData();
+                renderAll();
+                showNotification(`Turno '${name}' creado.`, 'success');
+            } else { showNotification('Por favor, ingresa un nombre para el turno.', 'error'); }
+        }
+
+        function toggleStatus(studentId, turnId) {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                student.statuses[turnId] = (student.statuses[turnId] || 'pendiente') === 'pendiente' ? 'cumplido' : 'pendiente';
+                saveData();
+                renderTable();
+                renderSummary();
+            }
+        }
+
+        function renderAll() {
+            renderTable();
+            renderSummary();
+            updateDynamicFilters();
+        }
+
+        function renderTable() {
+            const tableBody = document.getElementById('table-body');
+            const tableHeader = document.getElementById('table-header');
+            
+            const groupFilter = document.getElementById('group-filter').value;
+            const statusTurnFilter = document.getElementById('status-filter-turn').value;
+            const statusValueFilter = document.getElementById('status-filter-value').value;
+
+            // Header construction logic
+            tableHeader.innerHTML = '<th>Alumno</th><th>Grupo</th><th>Acción</th>';
+            let turnsToDisplay = turns;
+            if (statusTurnFilter !== 'all') {
+                turnsToDisplay = turns.filter(t => t.id == statusTurnFilter);
+            }
+            turnsToDisplay.forEach(turn => tableHeader.innerHTML += `<th>${turn.name}</th>`);
+
+
+            let filteredStudents = [...students].sort((a, b) => a.studentName.localeCompare(b.studentName, 'es'));
+            if (groupFilter !== 'all') filteredStudents = filteredStudents.filter(s => s.group == groupFilter);
+            if (statusTurnFilter !== 'all' && statusValueFilter !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.statuses[statusTurnFilter] === statusValueFilter);
+            }
+
+            tableBody.innerHTML = '';
+            filteredStudents.forEach(student => {
+                let groupHtml = '<div class="group-assign-cell">';
+                for (let i = 1; i <= 4; i++) {
+                    groupHtml += `<span class="group-assign-btn ${student.group === i ? 'active' : ''}" onclick="updateStudentGroup(${student.id}, ${i})">${i}</span>`;
+                }
+                groupHtml += '</div>';
+
+                const deleteBtnClass = student.isDeleting ? 'delete-btn confirm' : 'delete-btn';
+                const deleteBtnText = student.isDeleting ? 'Confirmar' : 'Eliminar';
+
+                let rowHtml = `<td>${student.studentName}</td><td>${groupHtml}</td><td><span class="${deleteBtnClass}" onclick="deleteStudent(${student.id})">${deleteBtnText}</span></td>`;
+                
+                turnsToDisplay.forEach(turn => {
+                    const status = student.statuses[turn.id] || 'pendiente';
+                    rowHtml += `<td><span class="status status-${status}" onclick="toggleStatus(${student.id}, ${turn.id})">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>`;
+                });
+                tableBody.innerHTML += `<tr>${rowHtml}</tr>`;
+            });
+        }
+
+        function renderSummary() {
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.innerHTML = '';
+            if(turns.length === 0) {
+                summaryDiv.innerHTML = '<p>Agrega un turno para ver el resumen.</p>'; return;
+            }
+            turns.forEach(turn => {
+                const cumplidos = students.filter(s => s.statuses[turn.id] === 'cumplido').length;
+                const pendientes = students.length - cumplidos;
+                summaryDiv.innerHTML += `
+                    <div class="summary-item">
+                        <strong>${turn.name}</strong>
+                        <span>
+                            <span class="count-c">${cumplidos}</span> C / 
+                            <span class="count-p">${pendientes}</span> P
+                        </span>
+                    </div>
+                `;
+            });
+        }
+        
+        function updateDynamicFilters() {
+            document.getElementById('status-filter-turn').innerHTML = '<option value="all">Filtrar por turno...</option>' + turns.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            
+            const groupFilter = document.getElementById('group-filter');
+            const existingGroups = [...new Set(students.map(s => s.group).filter(g => g > 0))].sort((a,b) => a-b);
+            groupFilter.innerHTML = '<option value="all">Ver Todos los Grupos</option>' + existingGroups.map(num => `<option value="${num}">Grupo ${num}</option>`).join('');
+            if (students.some(s => s.group === 0)) groupFilter.innerHTML += `<option value="0">Sin Asignar</option>`;
+        }
+
+        function setupFileHandler(inputId, callback) {
+            document.getElementById(inputId).addEventListener('change', event => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = e => callback(e.target.result);
+                reader.readAsText(file);
+                event.target.value = '';
+            });
+        }
+        
+        function importJSON() { document.getElementById('import-json-file').click(); }
+        setupFileHandler('import-json-file', (result) => {
+            try {
+                const data = JSON.parse(result);
+                if (data.students && data.turns) {
+                    students = data.students;
+                    turns = data.turns;
+                    saveData(); renderAll(); showNotification("Copia de seguridad restaurada.", 'success');
+                } else showNotification("El archivo no tiene el formato correcto.", 'error');
+            } catch (err) { showNotification("Error al leer el archivo.", 'error'); }
+        });
+        
+        function importCSV() { document.getElementById('import-csv-file').click(); }
+        setupFileHandler('import-csv-file', (result) => {
+            const names = result.split('\n').map(n => n.trim()).filter(Boolean);
+            let addedCount = 0;
+            names.forEach(name => {
+                if (!students.some(s => s.studentName.toLowerCase() === name.toLowerCase())) {
+                    const newStudent = { id: Date.now() + addedCount, studentName: name, group: 0, statuses: {} };
+                    turns.forEach(turn => newStudent.statuses[turn.id] = 'pendiente');
+                    students.push(newStudent);
+                    addedCount++;
+                }
+            });
+            if (addedCount > 0) {
+                saveData(); renderAll(); showNotification(`${addedCount} alumnos nuevos agregados.`, 'success');
+            } else { showNotification('No se agregaron alumnos (posiblemente ya existían).', 'info'); }
+        });
+        
+        function exportJSON() {
+            const dataStr = JSON.stringify({ students, turns });
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `control_turnos_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+        
+        function exportCSV() {
+            let csv = ["Alumno", "Grupo", ...turns.map(t => t.name)].join(",") + "\r\n";
+            [...students].sort((a, b) => a.studentName.localeCompare(b.studentName))
+                .forEach(s => csv += [`"${s.studentName}"`, s.group||"N/A", ...turns.map(t => s.statuses[t.id]||"pendiente")].join(",") + "\r\n");
+            
+            const a = document.createElement("a");
+            a.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            a.download = "lista_turnos_cocina.csv";
+            a.click();
+        }
+
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>
+
+
+
+
+

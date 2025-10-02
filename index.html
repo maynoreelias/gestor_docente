@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Apps para Docentes</title>
+    
+    <!-- Meta tags para PWA -->
+    <meta name="theme-color" content="#ffffff"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        .launcher-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .launcher-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        /* La vista de la app ocupará toda la pantalla */
+        #app-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #f1f5f9;
+        }
+        #app-iframe {
+            flex-grow: 1; /* Ocupa todo el espacio disponible */
+            border: none;
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <!-- ========= VISTA DEL LANZADOR (Visible por defecto) ========= -->
+    <div id="launcher-view">
+        <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+            <header class="text-center mb-10">
+                <h1 class="text-4xl font-bold text-slate-800">Centro de Herramientas</h1>
+                <p class="mt-2 text-lg text-slate-600">Gestión docente en un solo lugar.</p>
+            </header>
+            
+            <!-- 
+            ========================================================================
+            == INSTRUCCIÓN 1: Aquí es donde defines tus aplicaciones.              ==
+            == Para cada app, asegúrate de que 'data-app-src' apunte al archivo   ==
+            == correcto dentro de la carpeta 'apps/'.                             ==
+            ========================================================================
+            -->
+            <main id="app-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                
+                <!-- Tarjeta 1: Gestor de Notas -->
+                <div data-app-src="apps/notas.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-sky-100 text-sky-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h3m-3-10h.01M9 17h3m-3-7h3m-1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Control de Notas</h2><p class="text-slate-500 mt-1 text-sm">Cuaderno de calificaciones.</p>
+                </div>
+                
+                <!-- Tarjeta 2: Asistencia -->
+                <div data-app-src="apps/asistencia.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-emerald-100 text-emerald-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Control de Asistencia</h2><p class="text-slate-500 mt-1 text-sm">Registro diario de asistencia al aula.</p>
+                </div>
+
+                <!-- Tarjeta 3: Casos -->
+                <div data-app-src="apps/casos.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-amber-100 text-amber-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Seguimiento de Casos</h2><p class="text-slate-500 mt-1 text-sm">Expedientes y registro de intervenciones para alumnos con caso.</p>
+                </div>
+                
+                <!-- Tarjeta 4: Cocina / Turnos -->
+                <div data-app-src="apps/cocina.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-orange-100 text-orange-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Turnos de Cocina</h2><p class="text-slate-500 mt-1 text-sm">Control de turnos de cocina encargados de estudiantes.</p>
+                </div>
+
+                <!-- Tarjeta 5: Seguimiento / Checklist -->
+                <div data-app-src="apps/seguimiento.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-indigo-100 text-indigo-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Checklist para alumnos</h2><p class="text-slate-500 mt-1 text-sm">Matriz de seguimiento para verificar la entrega de materiales o trabajos según listado de estudiantes.</p>
+                </div>
+                
+                <!-- Tarjeta 6: Notas Rápidas (Taks) -->
+                <div data-app-src="apps/taks.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-fuchsia-100 text-fuchsia-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Lista de pendientes</h2><p class="text-slate-500 mt-1 text-sm">Una lista de tareas simple para apuntes rápidos.</p>
+                </div>
+                
+                <!-- Tarjeta 7: Herramientas de Aula (Tools) -->
+                <div data-app-src="apps/tools.html" class="launcher-card cursor-pointer ...">
+                    <!-- ... contenido visual de la tarjeta ... -->
+                    <div class="bg-rose-100 text-rose-600 rounded-full p-3 mb-4"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
+                    <h2 class="text-xl font-bold text-slate-800">Herramientas de Aula</h2><p class="text-slate-500 mt-1 text-sm">Utilidades como selector aleatorio, grupos, temporizador y medidor de ruido.</p>
+                </div>
+
+                <!-- ... Agrega más tarjetas aquí si creas más apps en el futuro ... -->
+                
+            </main>
+        </div>
+    </div>
+
+    <!-- ========= VISTA DE LA APLICACIÓN (Oculta por defecto) ========= -->
+    <div id="app-view" style="display: none;">
+        <!-- Barra superior con el botón de volver -->
+        <div class="bg-white/80 backdrop-blur-sm border-b border-slate-200 p-2 shadow-sm flex items-center">
+            <button id="back-to-launcher-btn" class="text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+        </div>
+        
+        <!-- El Iframe donde se cargará la aplicación seleccionada -->
+        <iframe id="app-iframe" src="about:blank"></iframe>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const launcher_view = document.getElementById('launcher-view');
+            const app_view = document.getElementById('app-view');
+            const app_grid = document.getElementById('app-grid');
+            const app_iframe = document.getElementById('app-iframe');
+            const back_to_launcher_btn = document.getElementById('back-to-launcher-btn');
+
+            // Función para mostrar una aplicación
+            function showApp(appSrc) {
+                // Asigna la URL de la app al iframe
+                app_iframe.src = appSrc;
+                
+                // Oculta el lanzador y muestra la vista de la app
+                launcher_view.style.display = 'none';
+                app_view.style.display = 'flex';
+            }
+
+            // Función para volver al lanzador
+            function showLauncher() {
+                // Oculta la vista de la app y muestra el lanzador
+                app_view.style.display = 'none';
+                launcher_view.style.display = 'block';
+
+                // Importante: Limpia el iframe para liberar memoria
+                app_iframe.src = 'about:blank';
+            }
+
+            // Asigna el evento de clic a la cuadrícula de apps
+            app_grid.addEventListener('click', (event) => {
+                // Busca la tarjeta (launcher-card) más cercana al elemento clickeado
+                const card = event.target.closest('.launcher-card');
+                if (card && card.dataset.appSrc) {
+                    showApp(card.dataset.appSrc);
+                }
+            });
+
+            // Asigna el evento de clic al botón de volver
+            back_to_launcher_btn.addEventListener('click', showLauncher);
+
+            // --- PWA: Registro del Service Worker ---
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registrado con éxito.');
+                        })
+                        .catch(err => {
+                            console.log('Fallo en el registro del ServiceWorker: ', err);
+                        });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
