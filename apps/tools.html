@@ -57,11 +57,13 @@
                     <input type="text" id="studentNameInput" placeholder="Nombre del alumno" class="flex-grow w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
                     <button type="submit" class="bg-cyan-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors text-sm">Añadir</button>
                 </form>
-                <div id="student-list" class="space-y-2 max-h-96 overflow-y-auto">
+                <!-- ADDED: Import CSV button -->
+                <button id="importCsvBtn" class="w-full bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-green-600 transition-colors text-sm mb-4">Importar CSV</button>
+                <div id="student-list" class="space-y-2 max-h-80 overflow-y-auto">
                     <!-- Lista de alumnos se renderiza aquí -->
                 </div>
                  <div id="empty-student-list" class="hidden text-center py-8 text-sm text-slate-400">
-                    Añade alumnos para empezar.
+                    Añade o importa alumnos para empezar.
                 </div>
             </div>
 
@@ -91,6 +93,9 @@
             <button id="closeResultModal" class="mt-8 bg-blue-500 text-white font-semibold py-2 px-6 rounded-lg shadow hover:bg-blue-600 transition-colors">Cerrar</button>
         </div>
     </div>
+    
+    <!-- ADDED: Hidden file input for CSV import -->
+    <input type="file" id="importCsvInput" class="hidden" accept=".csv,.txt">
 
 
     <script>
@@ -123,6 +128,9 @@
         const resultTitle = document.getElementById('resultTitle');
         const resultBody = document.getElementById('resultBody');
         const closeResultModal = document.getElementById('closeResultModal');
+        // ADDED: CSV Import elements
+        const importCsvBtn = document.getElementById('importCsvBtn');
+        const importCsvInput = document.getElementById('importCsvInput');
 
         // --- LOCAL STORAGE ---
         function saveStudents() {
@@ -133,7 +141,12 @@
             const saved = localStorage.getItem('classToolsStudents');
             if (saved) {
                 students = JSON.parse(saved);
-                uncalledStudents = [...students];
+                // Sync uncalled students with the main list on load
+                const calledStudents = new Set(students.filter(s => !uncalledStudents.includes(s)));
+                uncalledStudents = students.filter(s => !calledStudents.has(s));
+                if (uncalledStudents.length === 0 && students.length > 0) {
+                   uncalledStudents = [...students]; // Auto-reset if cycle was finished
+                }
             }
         }
 
@@ -151,6 +164,10 @@
                 microphone.getTracks().forEach(track => track.stop());
                 microphone = null;
             }
+             if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+                audioContext = null;
+            }
         }
 
         // --- RENDERING ---
@@ -158,16 +175,18 @@
             studentListEl.innerHTML = '';
             if (students.length === 0) {
                 emptyStudentListEl.classList.remove('hidden');
+                studentListEl.classList.add('hidden');
                 return;
             }
             emptyStudentListEl.classList.add('hidden');
+            studentListEl.classList.remove('hidden');
 
             students.forEach((student, index) => {
                 const studentDiv = document.createElement('div');
                 studentDiv.className = 'flex items-center justify-between bg-slate-50 p-2 rounded-md text-sm';
                 studentDiv.innerHTML = `
                     <span class="text-slate-700">${student}</span>
-                    <button data-index="${index}" class="remove-student-btn text-red-400 hover:text-red-600">&times;</button>
+                    <button data-index="${index}" class="remove-student-btn text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
                 `;
                 studentListEl.appendChild(studentDiv);
             });
@@ -199,7 +218,7 @@
                     toolContentEl.innerHTML = `
                         <div class="flex items-center gap-4">
                             <label for="groupCount" class="font-semibold">Número de grupos:</label>
-                            <input type="number" id="groupCount" value="2" min="2" max="${students.length}" class="w-20 border border-slate-300 rounded-md p-2 text-center">
+                            <input type="number" id="groupCount" value="2" min="2" max="${students.length || 2}" class="w-20 border border-slate-300 rounded-md p-2 text-center">
                             <button id="runGroups" class="bg-purple-500 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-purple-600 transition-colors">Formar Grupos</button>
                         </div>
                     `;
@@ -242,7 +261,14 @@
         
         // --- TOOL LOGIC: Participation & Groups ---
         function runFairSelection() {
-            if (students.length === 0 || uncalledStudents.length === 0) return;
+            if (students.length === 0) {
+                 alert("Añade alumnos a la lista primero.");
+                 return;
+            }
+            if (uncalledStudents.length === 0) {
+                 alert("Todos los alumnos ya participaron. Reinicia el ciclo.");
+                 return;
+            }
             const randomIndex = Math.floor(Math.random() * uncalledStudents.length);
             const selected = uncalledStudents.splice(randomIndex, 1)[0];
             showResult('Participante', `<p class="text-4xl font-bold text-green-600">${selected}</p>`);
@@ -251,7 +277,14 @@
 
         function runGroupFormation() {
             const groupCount = parseInt(document.getElementById('groupCount').value, 10);
-            if (isNaN(groupCount) || groupCount < 2 || students.length === 0) return;
+            if (students.length < 2) {
+                alert("Necesitas al menos 2 alumnos para formar grupos.");
+                return;
+            }
+             if (isNaN(groupCount) || groupCount < 2 || groupCount > students.length) {
+                alert("Por favor, introduce un número válido de grupos.");
+                return;
+            }
 
             let shuffled = [...students].sort(() => 0.5 - Math.random());
             let groups = Array.from({ length: groupCount }, () => []);
@@ -260,7 +293,7 @@
                 groups[index % groupCount].push(student);
             });
 
-            let resultHTML = '<div class="grid grid-cols-2 gap-4 text-left">';
+            let resultHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-h-80 overflow-y-auto">`;
             groups.forEach((group, index) => {
                 resultHTML += `<div><h4 class="font-semibold mb-2 border-b">Grupo ${index + 1}</h4><ul class="list-disc list-inside text-slate-600">`;
                 group.forEach(student => {
@@ -274,10 +307,13 @@
         
         // --- TOOL LOGIC: Timer ---
         function setTimer(e) {
+            clearInterval(timerInterval);
+            timerInterval = null;
             const seconds = parseInt(e.target.dataset.time, 10);
             timerTotalSeconds = seconds;
             timerSecondsRemaining = seconds;
             updateTimerDisplay();
+            document.getElementById('timer-start-pause').textContent = 'Iniciar';
         }
 
         function toggleTimer() {
@@ -292,7 +328,8 @@
                 if (timerTotalSeconds === 0) timerTotalSeconds = timerSecondsRemaining;
 
                 button.textContent = 'Pausa';
-                button.classList.replace('bg-yellow-500', 'bg-blue-500');
+                button.classList.remove('bg-yellow-500');
+                button.classList.add('bg-blue-500');
                 
                 timerInterval = setInterval(() => {
                     timerSecondsRemaining--;
@@ -312,7 +349,10 @@
             timerInterval = null;
             timerSecondsRemaining = timerTotalSeconds;
             updateTimerDisplay();
-            document.getElementById('timer-start-pause').textContent = 'Iniciar';
+            const button = document.getElementById('timer-start-pause');
+            button.textContent = 'Iniciar';
+            button.classList.remove('bg-yellow-500');
+            button.classList.add('bg-blue-500');
         }
 
         function updateTimerDisplay() {
@@ -322,17 +362,19 @@
             
             const progress = (timerTotalSeconds - timerSecondsRemaining) / timerTotalSeconds;
             const offset = 283 * (1 - progress);
-            document.getElementById('timer-progress').style.strokeDashoffset = isNaN(offset) ? 283 : offset;
+            document.getElementById('timer-progress').style.strokeDashoffset = isNaN(offset) || offset < 0 ? 283 : offset;
         }
         
         function playTimerEndSound() {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
-            oscillator.connect(audioCtx.destination);
-            oscillator.start();
-            setTimeout(() => oscillator.stop(), 500);
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+                oscillator.connect(audioCtx.destination);
+                oscillator.start();
+                setTimeout(() => oscillator.stop(), 500);
+            } catch (e) { console.error("Could not play sound:", e); }
         }
 
         // --- TOOL LOGIC: Noise Meter ---
@@ -340,12 +382,9 @@
              const button = e.target;
             if (audioContext && audioContext.state === 'running') {
                 cleanupActiveTool();
-                audioContext.close().then(() => {
-                     audioContext = null;
-                     button.textContent = 'Empezar a Medir';
-                     button.classList.replace('bg-red-500', 'bg-orange-500');
-                     document.getElementById('noise-level').style.height = '0%';
-                });
+                button.textContent = 'Empezar a Medir';
+                button.classList.replace('bg-red-500', 'bg-orange-500');
+                document.getElementById('noise-level').style.height = '0%';
             } else {
                  startNoiseMeter(button);
             }
@@ -353,6 +392,10 @@
 
         async function startNoiseMeter(button) {
             try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("Tu navegador no soporta el acceso al micrófono.");
+                    return;
+                }
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 microphone = stream;
                 button.textContent = 'Detener';
@@ -371,13 +414,13 @@
                     let sum = dataArray.reduce((a, b) => a + b, 0);
                     let average = sum / dataArray.length;
                     
-                    const level = Math.min(100, (average / 128) * 100 * 2); // Amplify for visibility
+                    const level = Math.min(100, (average / 128) * 100 * 2);
                     const noiseLevelEl = document.getElementById('noise-level');
                     noiseLevelEl.style.height = `${level}%`;
 
-                    if (level < 40) noiseLevelEl.style.backgroundColor = '#22c55e'; // green
-                    else if (level < 70) noiseLevelEl.style.backgroundColor = '#facc15'; // yellow
-                    else noiseLevelEl.style.backgroundColor = '#ef4444'; // red
+                    if (level < 40) noiseLevelEl.style.backgroundColor = '#22c55e'; // green-500
+                    else if (level < 70) noiseLevelEl.style.backgroundColor = '#f59e0b'; // amber-500
+                    else noiseLevelEl.style.backgroundColor = '#ef4444'; // red-500
 
                     animationFrameId = requestAnimationFrame(updateMeter);
                 }
@@ -398,6 +441,52 @@
         function hideResult() {
             resultModal.classList.add('hidden');
         }
+
+        // --- ADDED: CSV Import Logic ---
+        function parseStudentsFromCsv(fileContent) {
+            if (!fileContent || typeof fileContent !== 'string') return [];
+            const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
+            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
+            const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
+            return dataLines.map(line => {
+                return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
+            }).filter(name => name);
+        }
+
+        importCsvBtn.addEventListener('click', () => importCsvInput.click());
+        importCsvInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const studentNames = parseStudentsFromCsv(e.target.result);
+                const existingNames = new Set(students.map(s => s.toLowerCase()));
+                let addedCount = 0;
+                
+                studentNames.forEach(name => {
+                    if (!existingNames.has(name.toLowerCase())) {
+                        students.push(name);
+                        uncalledStudents.push(name);
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveStudents();
+                    renderStudentList();
+                    renderTool();
+                    alert(`${addedCount} alumno(s) importado(s) con éxito.`);
+                } else {
+                    alert("No se agregaron alumnos nuevos (posiblemente ya existían).");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        });
+
 
         // --- EVENT LISTENERS ---
         addStudentForm.addEventListener('submit', (e) => {
@@ -441,5 +530,3 @@
     </script>
 </body>
 </html>
-
-
