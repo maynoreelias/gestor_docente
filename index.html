@@ -13,7 +13,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -21,11 +21,9 @@
             font-family: 'Inter', sans-serif;
             background-color: #f1f5f9; /* slate-100 */
         }
-        /* NUEVO ESTILO: Transición suave para la loseta */
         .launcher-tile {
             transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
         }
-        /* NUEVO ESTILO: Efecto al pasar el cursor */
         .launcher-tile:hover {
             transform: scale(1.05);
             background-color: #ffffff; /* Se vuelve blanco al pasar el cursor */
@@ -48,7 +46,6 @@
                 <h1 class="text-3xl sm:text-4xl font-bold text-slate-800">Centro de Aplicaciones</h1>
             </header>
             
-            <!-- NUEVO DISEÑO: Cuadrícula más densa y responsiva -->
             <main id="app-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
                 
                 <!-- Tarjeta 1: Gestor de Notas -->
@@ -108,6 +105,18 @@
                 </div>
                 
             </main>
+
+            <!-- ========= INICIO DEL BANNER AÑADIDO ========= -->
+            <footer class="mt-16 text-center text-sm text-slate-500 py-8 border-t border-slate-200">
+                <div class="max-w-4xl mx-auto px-4">
+                    <p class="font-semibold text-slate-600">¿Buscas la herramienta a medida?</p>
+                    <p class="mt-2">¡Hablemos! Contáctame para desarrollar soluciones personalizadas para tus necesidades educativas.</p>
+		    <p class="mt-2">Sincronización en dispositivos, más aplicaciones, asistencia personalizada, integración con el sistema educativo. Características Premium</p>
+                    <p class="mt-4 font-medium">Maynor Elias Ordoñez 4222-6245 | <a href="mailto:[tu@email.com]" class="text-blue-500 hover:underline">maynoreelias@gmail.com</a></p>
+                </div>
+            </footer>
+            <!-- ========= FIN DEL BANNER AÑADIDO ========= -->
+            
         </div>
     </div>
 
