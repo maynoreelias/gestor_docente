@@ -215,15 +215,17 @@
                         <input type="text" id="student-name-input" placeholder="Nombre del nuevo alumno">
                         <button id="add-student-btn">Agregar</button>
                     </div>
+                    <!-- ADDED: Button to import students from CSV -->
+                    <button id="import-students-csv-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px;">Importar Alumnos (CSV)</button>
+                    <input type="file" id="import-csv-file" style="display: none;" accept=".csv,.txt">
+
                     <ul id="student-list"></ul>
                 </div>
                 <div class="control-group">
                     <h2>Datos</h2>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <button id="export-month-btn" class="btn-success">Exportar Mes (CSV)</button>
-                        <button id="export-data-btn" class="btn-secondary">Guardar Copia de Seguridad (JSON)</button>
-                        <button id="import-data-btn" class="btn-secondary">Cargar Copia de Seguridad (JSON)</button>
-                        <input type="file" id="import-file" style="display: none;" accept=".json">
+                        <!-- REMOVED: JSON Backup Buttons -->
                     </div>
                 </div>
             </div>
@@ -281,11 +283,12 @@
             const saveNoteBtn = document.getElementById('save-note-btn');
             const closeNoteModalBtn = document.getElementById('close-note-modal');
             const exportMonthBtn = document.getElementById('export-month-btn');
-            const exportDataBtn = document.getElementById('export-data-btn');
-            const importDataBtn = document.getElementById('import-data-btn');
-            const importFileInput = document.getElementById('import-file');
             const tabsContainer = document.querySelector('.tabs');
             const tabContents = document.querySelectorAll('.tab-content');
+            // --- ADDED: CSV Import Elements ---
+            const importStudentsCsvBtn = document.getElementById('import-students-csv-btn');
+            const importCsvFileInput = document.getElementById('import-csv-file');
+
 
             // --- CONSTANTS ---
             const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -305,7 +308,7 @@
                     attendance = parsedData.attendance || {};
                 }
             }
-
+            
             // --- RENDER FUNCTIONS ---
             function renderCalendar() {
                 calendarBody.innerHTML = '';
@@ -359,7 +362,6 @@
             function showAttendanceModal(day, month, year) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 
-                // --- Save on first open ---
                 if (!attendance[dateStr] && students.length > 0) {
                     attendance[dateStr] = {};
                     students.forEach(student => {
@@ -491,21 +493,57 @@
                 document.body.removeChild(link);
             }
             
-            function exportData() {
-                const dataStr = JSON.stringify({ students, attendance });
-                const dataBlob = new Blob([dataStr], { type: "application/json" });
-                const url = URL.createObjectURL(dataBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `asistencia_backup_${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+            // --- ADDED: CSV Import Functionality ---
+            function parseStudentsFromCsv(fileContent) {
+                if (!fileContent || typeof fileContent !== 'string') return [];
+                const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
+                const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                if (lines.length === 0) return [];
+                const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
+                const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
+                return dataLines.map(line => {
+                    return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
+                }).filter(name => name);
             }
 
-            function importData() {
-                 if (confirm("Importar datos reemplazará toda la información actual. ¿Continuar?")) {
-                    importFileInput.click();
-                }
+            function handleCsvImport(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const content = e.target.result;
+                        const studentNames = parseStudentsFromCsv(content);
+                        if (studentNames.length === 0) {
+                            alert("No se encontraron nombres de alumnos válidos en el archivo.");
+                            return;
+                        }
+
+                        const existingNames = new Set(students.map(s => s.name.toLowerCase()));
+                        let newStudentsAdded = 0;
+
+                        studentNames.forEach(name => {
+                            if (!existingNames.has(name.toLowerCase())) {
+                                students.push({ id: Date.now() + newStudentsAdded, name });
+                                newStudentsAdded++;
+                            }
+                        });
+
+                        if (newStudentsAdded > 0) {
+                            saveData();
+                            renderStudentList();
+                            alert(`${newStudentsAdded} alumno(s) importado(s) con éxito.`);
+                        } else {
+                            alert("No se agregaron alumnos nuevos (posiblemente ya existían en la lista).");
+                        }
+                    } catch (error) {
+                        alert("Error al procesar el archivo CSV.");
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = ''; // Reset file input
             }
 
             // --- EVENT LISTENERS ---
@@ -532,7 +570,9 @@
             studentList.addEventListener('click', (e) => {
                 if (e.target.classList.contains('delete-student')) {
                     const id = parseInt(e.target.dataset.id);
-                    deleteStudent(id);
+                    if(confirm("¿Seguro que quieres eliminar a este alumno y todos sus registros de asistencia?")) {
+                        deleteStudent(id);
+                    }
                 }
             });
             closeAttendanceModalBtn.addEventListener('click', closeAttendanceModal);
@@ -556,31 +596,10 @@
                 if (e.target === noteModal) closeNoteModal();
             });
             exportMonthBtn.addEventListener('click', exportMonthToCSV);
-            exportDataBtn.addEventListener('click', exportData);
-            importDataBtn.addEventListener('click', importData);
-            importFileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const data = JSON.parse(e.target.result);
-                        if (data.students && data.attendance) {
-                            students = data.students;
-                            attendance = data.attendance;
-                            saveData();
-                            init();
-                            alert("Datos importados con éxito.");
-                        } else {
-                            alert("El archivo no tiene el formato correcto.");
-                        }
-                    } catch (error) {
-                        alert("Error al leer el archivo.");
-                    }
-                };
-                reader.readAsText(file);
-                event.target.value = '';
-            });
+            
+            // --- ADDED: CSV Import Listeners ---
+            importStudentsCsvBtn.addEventListener('click', () => importCsvFileInput.click());
+            importCsvFileInput.addEventListener('change', handleCsvImport);
 
             // --- INITIALIZATION ---
             function init() {
@@ -595,5 +614,3 @@
     </script>
 </body>
 </html>
-
-
