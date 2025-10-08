@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Turnos de Cocina v4</title>
+    <title>Control de Turnos de Cocina</title>
     <style>
         :root {
             --color-bg: #f7f9fc;
@@ -225,13 +225,8 @@
                     </div>
                     <div class="control-group">
                         <label>Alumnos (CSV)</label>
-                        <button class="info" onclick="importCSV()">Importar</button>
-                        <button class="info" onclick="exportCSV()">Exportar</button>
-                    </div>
-                    <div class="control-group">
-                        <label>Copia de Seguridad</label>
-                        <button class="success" onclick="exportJSON()">Guardar</button>
-                        <button class="secondary" onclick="importJSON()">Cargar</button>
+                        <button class="info" onclick="importCSV()">Importar Lista</button>
+                        <button class="info" onclick="exportCSV()">Exportar Informe</button>
                     </div>
                 </div>
             </div>
@@ -258,7 +253,6 @@
     
     <div id="notification"></div>
     <input type="file" id="import-csv-file" style="display: none;" accept=".csv,.txt">
-    <input type="file" id="import-json-file" style="display: none;" accept=".json">
 
     <script>
         let students = [];
@@ -369,8 +363,8 @@
         }
 
         function renderAll() {
-            updateDynamicFilters(); // FIX: Populate filters first
-            renderTable();          // Then render the table
+            updateDynamicFilters();
+            renderTable();
             renderSummary();
         }
 
@@ -389,12 +383,25 @@
             }
             turnsToDisplay.forEach(turn => tableHeader.innerHTML += `<th>${turn.name}</th>`);
 
-
             let filteredStudents = [...students].sort((a, b) => a.studentName.localeCompare(b.studentName, 'es'));
-            if (groupFilter !== 'all') filteredStudents = filteredStudents.filter(s => s.group == groupFilter);
-            if (statusTurnFilter !== 'all' && statusValueFilter !== 'all') {
-                filteredStudents = filteredStudents.filter(s => s.statuses[statusTurnFilter] === statusValueFilter);
+            
+            // --- FIX: Lógica de filtrado corregida ---
+            if (groupFilter !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.group == groupFilter);
             }
+
+            if (statusValueFilter !== 'all') {
+                if (statusTurnFilter !== 'all') {
+                    // Filtrar por estado en un turno específico
+                    filteredStudents = filteredStudents.filter(s => s.statuses[statusTurnFilter] === statusValueFilter);
+                } else {
+                    // Filtrar por estado en CUALQUIER turno
+                    filteredStudents = filteredStudents.filter(s => 
+                        Object.values(s.statuses).some(status => status === statusValueFilter)
+                    );
+                }
+            }
+            // --- FIN DEL FIX ---
 
             tableBody.innerHTML = '';
             filteredStudents.forEach(student => {
@@ -458,44 +465,37 @@
             });
         }
         
-        function importJSON() { document.getElementById('import-json-file').click(); }
-        setupFileHandler('import-json-file', (result) => {
-            try {
-                const data = JSON.parse(result);
-                if (data.students && data.turns) {
-                    students = data.students;
-                    turns = data.turns;
-                    saveData(); renderAll(); showNotification("Copia de seguridad restaurada.", 'success');
-                } else showNotification("El archivo no tiene el formato correcto.", 'error');
-            } catch (err) { showNotification("Error al leer el archivo.", 'error'); }
-        });
-        
+        function parseStudentsFromCsv(fileContent) {
+            if (!fileContent || typeof fileContent !== 'string') return [];
+            const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
+            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
+            const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
+            return dataLines.map(line => {
+                return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
+            }).filter(name => name);
+        }
+
         function importCSV() { document.getElementById('import-csv-file').click(); }
         setupFileHandler('import-csv-file', (result) => {
-            const names = result.split('\n').map(n => n.trim()).filter(Boolean);
+            const names = parseStudentsFromCsv(result);
             let addedCount = 0;
+            const existingNames = new Set(students.map(s => s.studentName.toLowerCase()));
+
             names.forEach(name => {
-                if (!students.some(s => s.studentName.toLowerCase() === name.toLowerCase())) {
+                if (!existingNames.has(name.toLowerCase())) {
                     const newStudent = { id: Date.now() + addedCount, studentName: name, group: 0, statuses: {} };
                     turns.forEach(turn => newStudent.statuses[turn.id] = 'pendiente');
                     students.push(newStudent);
                     addedCount++;
                 }
             });
+
             if (addedCount > 0) {
-                saveData(); renderAll(); showNotification(`${addedCount} alumnos nuevos agregados.`, 'success');
+                saveData(); renderAll(); showNotification(`${addedCount} alumno(s) nuevo(s) agregado(s).`, 'success');
             } else { showNotification('No se agregaron alumnos (posiblemente ya existían).', 'info'); }
         });
-        
-        function exportJSON() {
-            const dataStr = JSON.stringify({ students, turns });
-            const blob = new Blob([dataStr], { type: "application/json" });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `control_turnos_backup_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-        }
         
         function exportCSV() {
             let csv = ["Alumno", "Grupo", ...turns.map(t => t.name)].join(",") + "\r\n";
@@ -504,7 +504,7 @@
             
             const a = document.createElement("a");
             a.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
-            a.download = "lista_turnos_cocina.csv";
+            a.download = "informe_turnos_cocina.csv";
             a.click();
         }
 
@@ -512,5 +512,3 @@
     </script>
 </body>
 </html>
-
-
