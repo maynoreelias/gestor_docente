@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lanzador de Dados Múltiples</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --control-bg: #ffffff;
+            --control-hover: #f1f3f5;
+            --border-color: #e9ecef;
+            --font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #dice-container {
+            display: flex;
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .die-column {
+            display: flex;
+            flex-direction: column;
+            flex-basis: 0;
+            flex-grow: 1;
+            border-left: 1px solid var(--border-color);
+        }
+        .die-column:first-child { border-left: none; }
+
+        .die-tile {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.4s ease;
+            position: relative;
+            flex-grow: 1;
+            border-top: 1px solid var(--border-color);
+        }
+        .die-column > .die-tile:first-child { border-top: none; }
+
+        .roll-result {
+            font-size: clamp(4rem, 20vw, 12rem);
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+        }
+        
+        .die-tile.rolling .roll-result {
+            transform: scale(0.8) rotate(15deg);
+        }
+
+        .faces-editor {
+            position: absolute;
+            top: 15px;
+            text-align: center;
+        }
+
+        .faces-label {
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 8px;
+            background-color: rgba(0, 0, 0, 0.15);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: text;
+        }
+
+        .faces-quick-select {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
+
+        .faces-editor.editing .faces-quick-select {
+            max-height: 50px; /* Reveal the quick select buttons */
+        }
+        
+        .faces-quick-select button {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .faces-quick-select button:hover { background: #fff; }
+
+        input.faces-input {
+            width: 60px;
+            padding: 5px;
+            border-radius: 6px;
+            border: 1px solid rgba(0,0,0,0.2);
+            text-align: center;
+            font-family: var(--font-family);
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+            background-color: var(--bg-color);
+            border-top: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        
+        .control-btn {
+            background-color: var(--control-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            font-size: 22px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            margin: 0 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .control-btn#roll-all-btn {
+            width: auto;
+            padding: 0 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 25px;
+        }
+        .control-btn:hover {
+            background-color: var(--control-hover);
+            transform: translateY(-1px);
+        }
+        .control-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background-color: #f1f3f5;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="dice-container"></div>
+
+    <div id="controls">
+        <button id="remove-die-btn" class="control-btn" title="Quitar dado">-</button>
+        <button id="roll-all-btn" class="control-btn">Lanzar Todos</button>
+        <button id="add-die-btn" class="control-btn" title="Añadir dado">+</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const diceContainer = document.getElementById('dice-container');
+            const addBtn = document.getElementById('add-die-btn');
+            const removeBtn = document.getElementById('remove-die-btn');
+            const rollAllBtn = document.getElementById('roll-all-btn');
+
+            let dice = [];
+            const MAX_DICE = 8;
+            const COMMON_FACES = [4, 6, 8, 10, 12, 20];
+
+            // Paleta de colores pastel, coordinada
+            const COLORS = [
+                '#84fab0', '#8fd3f4', '#fbc2eb', '#a6c1ee', 
+                '#f6d365', '#fda085', '#d4fc79', '#96e6a1'
+            ];
+
+            function saveState() {
+                localStorage.setItem('multiDiceStateV1', JSON.stringify(dice));
+            }
+
+            function loadState() {
+                const savedState = JSON.parse(localStorage.getItem('multiDiceStateV1'));
+                if (savedState && savedState.length > 0) {
+                    dice = savedState;
+                } else {
+                    // Estado inicial por defecto
+                    dice = [{ id: Date.now(), faces: 6, value: 6 }];
+                }
+                renderAllDice();
+            }
+            
+            function buildLayout(count) {
+                switch(count) {
+                    case 1: return [[1]];
+                    case 2: return [[1], [1]];
+                    case 3: return [[1], [1, 1]];
+                    case 4: return [[1, 1], [1, 1]];
+                    case 5: return [[1, 1, 1], [1, 2]];
+                    case 6: return [[1, 1, 1], [1, 1, 1]];
+                    case 7: return [[1, 1, 1, 1], [1, 1, 2]];
+                    case 8: return [[1, 1, 1, 1], [1, 1, 1, 1]];
+                    default: return [];
+                }
+            }
+
+            function updateButtons() {
+                addBtn.disabled = dice.length >= MAX_DICE;
+                removeBtn.disabled = dice.length <= 1;
+            }
+
+            function rollDie(dieId, tileElement) {
+                const die = dice.find(d => d.id === dieId);
+                if (!die) return;
+
+                const rollValue = Math.floor(Math.random() * die.faces) + 1;
+                die.value = rollValue;
+                
+                // Animation
+                tileElement.classList.add('rolling');
+                setTimeout(() => {
+                    tileElement.querySelector('.roll-result').textContent = rollValue;
+                    tileElement.classList.remove('rolling');
+                }, 100);
+
+                saveState();
+            }
+
+            function createDieElement(die, color) {
+                const tile = document.createElement('div');
+                tile.className = 'die-tile';
+                tile.style.background = `linear-gradient(135deg, ${color} 0%, ${adjustColor(color, 20)} 100%)`;
+                tile.addEventListener('click', (e) => {
+                    if (!e.target.closest('.faces-editor')) {
+                       rollDie(die.id, tile);
+                    }
+                });
+
+                const result = document.createElement('div');
+                result.className = 'roll-result';
+                result.textContent = die.value;
+
+                // --- Editor de Caras ---
+                const editor = document.createElement('div');
+                editor.className = 'faces-editor';
+
+                const label = document.createElement('span');
+                label.className = 'faces-label';
+                label.textContent = `D${die.faces}`;
+                
+                const quickSelect = document.createElement('div');
+                quickSelect.className = 'faces-quick-select';
+
+                const updateFaces = (newFaces) => {
+                    newFaces = parseInt(newFaces, 10);
+                    if (isNaN(newFaces) || newFaces < 2) newFaces = 2;
+                    die.faces = newFaces;
+                    label.textContent = `D${die.faces}`;
+                    editor.innerHTML = ''; // Rebuild editor to close it
+                    editor.appendChild(label);
+                    editor.appendChild(quickSelect);
+                    editor.classList.remove('editing');
+                    saveState();
+                };
+                
+                label.addEventListener('click', () => {
+                    if (editor.classList.contains('editing')) return;
+
+                    editor.classList.add('editing');
+                    label.style.display = 'none';
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'faces-input';
+                    input.value = die.faces;
+                    input.addEventListener('blur', () => updateFaces(input.value));
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') input.blur();
+                    });
+                    
+                    editor.prepend(input);
+                    input.focus();
+                    input.select();
+                });
+
+                COMMON_FACES.forEach(f => {
+                    const btn = document.createElement('button');
+                    btn.textContent = `D${f}`;
+                    btn.addEventListener('click', () => updateFaces(f));
+                    quickSelect.appendChild(btn);
+                });
+
+                editor.appendChild(label);
+                editor.appendChild(quickSelect);
+                tile.appendChild(editor);
+                tile.appendChild(result);
+                return tile;
+            }
+
+            function renderAllDice() {
+                diceContainer.innerHTML = '';
+                const layout = buildLayout(dice.length);
+                let dieIndex = 0;
+                
+                layout.forEach(colItems => {
+                    const column = document.createElement('div');
+                    column.className = 'die-column';
+                    colItems.forEach(rowSpan => {
+                         if (dieIndex < dice.length) {
+                            const die = dice[dieIndex];
+                            const color = COLORS[dieIndex % COLORS.length];
+                            const tileEl = createDieElement(die, color);
+                            tileEl.style.flexGrow = rowSpan;
+                            column.appendChild(tileEl);
+                            dieIndex++;
+                        }
+                    });
+                    diceContainer.appendChild(column);
+                });
+                updateButtons();
+            }
+
+            function addDie() {
+                if (dice.length >= MAX_DICE) return;
+                dice.push({ id: Date.now(), faces: 6, value: 6 });
+                renderAllDice();
+                saveState();
+            }
+
+            function removeDie() {
+                if (dice.length <= 1) return;
+                dice.pop();
+                renderAllDice();
+                saveState();
+            }
+
+            function rollAll() {
+                document.querySelectorAll('.die-tile').forEach((tile, index) => {
+                    setTimeout(() => {
+                        rollDie(dice[index].id, tile);
+                    }, index * 75); // Stagger the rolls for a nice effect
+                });
+            }
+
+            function adjustColor(hex, percent) {
+                let r = parseInt(hex.substring(1, 3), 16);
+                let g = parseInt(hex.substring(3, 5), 16);
+                let b = parseInt(hex.substring(5, 7), 16);
+                r = Math.min(255, r * (1 + percent / 100));
+                g = Math.min(255, g * (1 + percent / 100));
+                b = Math.min(255, b * (1 + percent / 100));
+                return `#${Math.round(r).toString(16).padStart(2, '0')}${Math.round(g).toString(16).padStart(2, '0')}${Math.round(b).toString(16).padStart(2, '0')}`;
+            }
+
+            addBtn.addEventListener('click', addDie);
+            removeBtn.addEventListener('click', removeDie);
+            rollAllBtn.addEventListener('click', rollAll);
+            
+            loadState();
+        });
+    </script>
+</body>
+</html>
+

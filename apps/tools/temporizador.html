@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporizadores Múltiples</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --control-bg: #ffffff;
+            --control-hover: #f1f3f5;
+            --border-color: #e9ecef;
+            --font-family: 'Inter', sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100vh;
+            background-color: var(--bg-color); color: var(--text-color);
+            font-family: var(--font-family); overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        #timers-container {
+            display: flex; flex-grow: 1; width: 100%; height: 100%;
+        }
+        
+        .timer-column {
+            display: flex; flex-direction: column; flex-basis: 0;
+            flex-grow: 1; border-left: 1px solid var(--border-color);
+        }
+        .timer-column:first-child { border-left: none; }
+
+        .timer-tile {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; cursor: pointer; user-select: none;
+            transition: all 0.4s ease; position: relative;
+            flex-grow: 1; border-top: 1px solid var(--border-color);
+        }
+        .timer-column > .timer-tile:first-child { border-top: none; }
+
+        .timer-tile.paused .timer-circle-progress { stroke: #ced4da; }
+        .timer-tile.finished { animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.1); }
+            100% { filter: brightness(1); }
+        }
+
+        /* --- Timer Circle & Display --- */
+        .timer-visual {
+            position: relative;
+            width: clamp(100px, 30vmin, 220px);
+            height: clamp(100px, 30vmin, 220px);
+            margin: 16px 0;
+        }
+        .timer-svg { width: 100%; height: 100%; }
+        .timer-circle-bg { fill: none; stroke: rgba(0,0,0,0.08); }
+        .timer-circle-progress {
+            fill: none; stroke: #fff; stroke-linecap: round;
+            transform: rotate(-90deg); transform-origin: 50% 50%;
+            transition: stroke-dashoffset 1s linear, stroke 0.4s;
+        }
+        .timer-display {
+            position: absolute; inset: 0; display: flex; align-items: center;
+            justify-content: center; font-size: clamp(1.5rem, 8vmin, 3.5rem);
+            font-weight: 300; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* --- Label and Controls --- */
+        .timer-label {
+            position: absolute; top: 20px; font-weight: 600; padding: 5px 12px;
+            border-radius: 8px; background-color: rgba(0, 0, 0, 0.15);
+            color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: text;
+        }
+        .timer-label:focus { background-color: rgba(0,0,0,0.3); outline: none; }
+
+        #controls {
+            display: flex; justify-content: center; align-items: center;
+            padding: 8px; background-color: var(--bg-color);
+            border-top: 1px solid var(--border-color); flex-shrink: 0;
+        }
+        .control-btn {
+            background-color: var(--control-bg); border: 1px solid var(--border-color);
+            color: var(--text-color); font-size: 22px; width: 45px; height: 45px;
+            border-radius: 50%; margin: 0 8px; cursor: pointer; transition: all 0.2s ease;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .control-btn:hover { background-color: var(--control-hover); transform: translateY(-1px); }
+        .control-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        /* --- Time Set Modal --- */
+        #timeSetModal { transition: opacity 0.2s, visibility 0.2s; }
+        .modal-content {
+            animation: fadeIn 0.2s ease-out;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 16px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .time-input {
+            width: 80px; text-align: center; font-size: 1.5rem;
+            border: 1px solid var(--border-color); border-radius: 8px; padding: 8px;
+        }
+    </style>
+     <!-- Tailwind for modal positioning -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+    <div id="timers-container"></div>
+
+    <div id="controls">
+        <button id="remove-timer-btn" class="control-btn" title="Quitar temporizador">-</button>
+        <button id="add-timer-btn" class="control-btn" title="Añadir temporizador">+</button>
+    </div>
+
+    <!-- Modal para ajustar tiempo -->
+    <div id="timeSetModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl p-8 w-full max-w-xs">
+            <h2 class="text-xl font-bold">Ajustar Tiempo</h2>
+            <div class="flex items-center gap-2">
+                <input type="number" id="minutesInput" class="time-input" min="0" max="99">
+                <span class="text-2xl font-semibold">:</span>
+                <input type="number" id="secondsInput" class="time-input" min="0" max="59">
+            </div>
+            <button id="confirmTimeBtn" class="bg-blue-500 text-white font-semibold py-2 px-6 rounded-lg w-full">Confirmar</button>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let timers = [];
+        const MAX_TIMERS = 8;
+        let activeTimerIdForModal = null;
+
+        const timersContainer = document.getElementById('timers-container');
+        const addBtn = document.getElementById('add-timer-btn');
+        const removeBtn = document.getElementById('remove-timer-btn');
+        const timeSetModal = document.getElementById('timeSetModal');
+        const minutesInput = document.getElementById('minutesInput');
+        const secondsInput = document.getElementById('secondsInput');
+        const confirmTimeBtn = document.getElementById('confirmTimeBtn');
+
+        const COLORS = ['#84fab0', '#8fd3f4', '#fbc2eb', '#a6c1ee', '#f6d365', '#fda085', '#d4fc79', '#96e6a1'];
+
+        function saveState() {
+            localStorage.setItem('multiCountdownStateV1', JSON.stringify(timers));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('multiCountdownStateV1');
+            if (saved && JSON.parse(saved).length > 0) {
+                timers = JSON.parse(saved);
+            } else {
+                timers = [{
+                    id: Date.now(), totalSeconds: 300, secondsRemaining: 300,
+                    isRunning: false, label: 'Temporizador 1', intervalId: null
+                }];
+            }
+            renderAllTimers();
+        }
+        
+        function buildLayout(count) {
+             switch(count) {
+                case 1: return [[1]]; case 2: return [[1], [1]]; case 3: return [[1], [1, 1]];
+                case 4: return [[1, 1], [1, 1]]; case 5: return [[1, 1, 1], [1, 2]]; case 6: return [[1, 1, 1], [1, 1, 1]];
+                case 7: return [[1, 1, 1, 1], [1, 1, 2]]; case 8: return [[1, 1, 1, 1], [1, 1, 1, 1]]; default: return [];
+            }
+        }
+        
+        function updateTimerDisplay(timer) {
+            const tile = document.getElementById(`tile-${timer.id}`);
+            if (!tile) return;
+
+            const display = tile.querySelector('.timer-display');
+            const progressCircle = tile.querySelector('.timer-circle-progress');
+            
+            const minutes = Math.floor(timer.secondsRemaining / 60);
+            const seconds = timer.secondsRemaining % 60;
+            display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            const progress = (timer.totalSeconds - timer.secondsRemaining) / timer.totalSeconds;
+            const offset = 283 * (1 - progress);
+            progressCircle.style.strokeDashoffset = isNaN(offset) || timer.totalSeconds === 0 ? 283 : offset;
+        }
+        
+        function createTimerTile(timer, color) {
+            const tile = document.createElement('div');
+            tile.id = `tile-${timer.id}`;
+            tile.className = 'timer-tile';
+            if (!timer.isRunning) tile.classList.add('paused');
+            tile.style.background = `linear-gradient(135deg, ${color} 0%, ${adjustColor(color, 20)} 100%)`;
+            
+            const label = `<div id="label-${timer.id}" class="timer-label" contenteditable="true" spellcheck="false">${timer.label}</div>`;
+            const visual = `
+                <div class="timer-visual">
+                    <svg class="timer-svg" viewBox="0 0 100 100">
+                        <circle class="timer-circle-bg" stroke-width="6" cx="50" cy="50" r="45"></circle>
+                        <circle class="timer-circle-progress" stroke-width="6" cx="50" cy="50" r="45" style="stroke-dasharray: 283;"></circle>
+                    </svg>
+                    <div class="timer-display">00:00</div>
+                </div>`;
+            
+            tile.innerHTML = label + visual;
+
+            // --- Event Listeners ---
+            tile.querySelector('.timer-label').addEventListener('blur', (e) => {
+                timer.label = e.target.textContent;
+                saveState();
+            });
+             tile.querySelector('.timer-label').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+            
+            tile.addEventListener('click', (e) => {
+                if (e.target.classList.contains('timer-label')) return;
+                
+                if (e.target.closest('.timer-display')) { // Open time set modal
+                    activeTimerIdForModal = timer.id;
+                    const minutes = Math.floor(timer.totalSeconds / 60);
+                    const seconds = timer.totalSeconds % 60;
+                    minutesInput.value = minutes;
+                    secondsInput.value = seconds;
+                    timeSetModal.classList.remove('hidden');
+                } else { // Toggle timer
+                    toggleTimer(timer.id);
+                }
+            });
+
+            return tile;
+        }
+
+        function renderAllTimers() {
+            timersContainer.innerHTML = '';
+            const layout = buildLayout(timers.length);
+            let timerIndex = 0;
+            
+            timers.forEach(t => { if(t.intervalId) clearInterval(t.intervalId) });
+
+            layout.forEach(colItems => {
+                const column = document.createElement('div');
+                column.className = 'timer-column';
+                colItems.forEach(rowSpan => {
+                    if (timerIndex < timers.length) {
+                        const timer = timers[timerIndex];
+                        const color = COLORS[timerIndex % COLORS.length];
+                        const tileEl = createTimerTile(timer, color);
+                        tileEl.style.flexGrow = rowSpan;
+                        column.appendChild(tileEl);
+                        
+                        updateTimerDisplay(timer);
+                        if (timer.isRunning) {
+                            startTimerInterval(timer);
+                        }
+                        timerIndex++;
+                    }
+                });
+                timersContainer.appendChild(column);
+            });
+            updateButtons();
+        }
+
+        function startTimerInterval(timer) {
+            if(timer.intervalId) clearInterval(timer.intervalId);
+            timer.intervalId = setInterval(() => {
+                timer.secondsRemaining--;
+                updateTimerDisplay(timer);
+                if (timer.secondsRemaining <= 0) {
+                    clearInterval(timer.intervalId);
+                    timer.isRunning = false;
+                    document.getElementById(`tile-${timer.id}`).classList.add('paused', 'finished');
+                    playTimerEndSound();
+                    saveState();
+                }
+            }, 1000);
+        }
+
+        function toggleTimer(timerId) {
+            const timer = timers.find(t => t.id === timerId);
+            if (!timer || timer.secondsRemaining <= 0) return;
+            
+            const tile = document.getElementById(`tile-${timer.id}`);
+            timer.isRunning = !timer.isRunning;
+            
+            if (timer.isRunning) {
+                tile.classList.remove('paused', 'finished');
+                startTimerInterval(timer);
+            } else {
+                clearInterval(timer.intervalId);
+                tile.classList.add('paused');
+            }
+            saveState();
+        }
+
+        function addTimer() {
+            if (timers.length >= MAX_TIMERS) return;
+            timers.push({
+                id: Date.now(), totalSeconds: 300, secondsRemaining: 300,
+                isRunning: false, label: `Temporizador ${timers.length + 1}`, intervalId: null
+            });
+            renderAllTimers();
+            saveState();
+        }
+
+        function removeTimer() {
+            if (timers.length <= 1) return;
+            const removed = timers.pop();
+            if (removed.intervalId) clearInterval(removed.intervalId);
+            renderAllTimers();
+            saveState();
+        }
+
+        function updateButtons() {
+            addBtn.disabled = timers.length >= MAX_TIMERS;
+            removeBtn.disabled = timers.length <= 1;
+        }
+
+        function playTimerEndSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                oscillator.connect(audioCtx.destination);
+                oscillator.start();
+                setTimeout(() => oscillator.stop(), 150);
+                setTimeout(() => audioCtx.close(), 500);
+            } catch (e) { console.error("Could not play sound:", e); }
+        }
+        
+        function adjustColor(hex, percent) {
+            let r = parseInt(hex.substring(1, 3), 16), g = parseInt(hex.substring(3, 5), 16), b = parseInt(hex.substring(5, 7), 16);
+            r = Math.min(255, r * (1 + percent/100)); g = Math.min(255, g * (1 + percent/100)); b = Math.min(255, b * (1 + percent/100));
+            return `#${Math.round(r).toString(16).padStart(2, '0')}${Math.round(g).toString(16).padStart(2, '0')}${Math.round(b).toString(16).padStart(2, '0')}`;
+        }
+        
+        // Modal Logic
+        confirmTimeBtn.addEventListener('click', () => {
+            const timer = timers.find(t => t.id === activeTimerIdForModal);
+            if (!timer) return;
+            const minutes = parseInt(minutesInput.value) || 0;
+            const seconds = parseInt(secondsInput.value) || 0;
+            const newTotalSeconds = (minutes * 60) + seconds;
+            
+            timer.totalSeconds = newTotalSeconds;
+            timer.secondsRemaining = newTotalSeconds;
+            timer.isRunning = false;
+            if(timer.intervalId) clearInterval(timer.intervalId);
+            
+            const tile = document.getElementById(`tile-${timer.id}`);
+            tile.classList.add('paused');
+            tile.classList.remove('finished');
+            
+            updateTimerDisplay(timer);
+            saveState();
+            timeSetModal.classList.add('hidden');
+        });
+
+        // Event Listeners
+        addBtn.addEventListener('click', addTimer);
+        removeBtn.addEventListener('click', removeTimer);
+        timeSetModal.addEventListener('click', (e) => { if(e.target === timeSetModal) timeSetModal.classList.add('hidden'); });
+
+        loadState();
+    });
+    </script>
+</body>
+</html>
+

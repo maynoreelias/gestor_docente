@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selector de Participantes y Grupos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .result-modal-content {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800">Selector de Participantes y Grupos</h1>
+            <p class="text-slate-500 mt-1">Gestiona tu clase y crea equipos al azar.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna de Gestión de Alumnos -->
+            <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-semibold mb-4">Lista de Clase</h2>
+                <form id="addStudentForm" class="flex gap-2 mb-4">
+                    <input type="text" id="studentNameInput" placeholder="Nombre del alumno" class="flex-grow w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
+                    <button type="submit" class="bg-cyan-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors text-sm">Añadir</button>
+                </form>
+                <button id="importCsvBtn" class="w-full bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-green-600 transition-colors text-sm mb-4">Importar CSV</button>
+                <div id="student-list" class="space-y-2 max-h-80 overflow-y-auto">
+                    <!-- Lista de alumnos se renderiza aquí -->
+                </div>
+                 <div id="empty-student-list" class="hidden text-center py-8 text-sm text-slate-400">
+                    Añade o importa alumnos para empezar.
+                </div>
+            </div>
+
+            <!-- Columna de Herramientas -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- Herramienta de Participación -->
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-lg font-semibold mb-4">Participación Justa</h2>
+                    <div id="fair-tool-content" class="text-center">
+                         <!-- El contenido se renderiza con JS -->
+                    </div>
+                </div>
+                <!-- Herramienta de Grupos -->
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-lg font-semibold mb-4">Generador de Grupos</h2>
+                    <div class="flex items-center justify-center gap-4">
+                        <label for="groupCount" class="font-semibold">Número de grupos:</label>
+                        <input type="number" id="groupCount" value="2" min="2" class="w-20 border border-slate-300 rounded-md p-2 text-center">
+                        <button id="runGroups" class="bg-purple-500 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-purple-600 transition-colors">Formar Grupos</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para mostrar resultado -->
+    <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
+        <div class="result-modal-content bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
+            <h2 id="resultTitle" class="text-2xl font-bold text-slate-800"></h2>
+            <div id="resultBody" class="mt-4 text-lg text-slate-600"></div>
+            <button id="closeResultModal" class="mt-8 bg-blue-500 text-white font-semibold py-2 px-6 rounded-lg shadow hover:bg-blue-600 transition-colors">Cerrar</button>
+        </div>
+    </div>
+    
+    <!-- Input oculto para importar CSV -->
+    <input type="file" id="importCsvInput" class="hidden" accept=".csv,.txt">
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ESTADO ---
+        let students = [];
+        let uncalledStudents = [];
+
+        // --- ELEMENTOS DEL DOM ---
+        const addStudentForm = document.getElementById('addStudentForm');
+        const studentNameInput = document.getElementById('studentNameInput');
+        const studentListEl = document.getElementById('student-list');
+        const emptyStudentListEl = document.getElementById('empty-student-list');
+        const fairToolContentEl = document.getElementById('fair-tool-content');
+        const resultModal = document.getElementById('resultModal');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultBody = document.getElementById('resultBody');
+        const closeResultModal = document.getElementById('closeResultModal');
+        const importCsvBtn = document.getElementById('importCsvBtn');
+        const importCsvInput = document.getElementById('importCsvInput');
+        const runGroupsBtn = document.getElementById('runGroups');
+
+        // --- LOCAL STORAGE ---
+        function saveStudents() {
+            localStorage.setItem('classToolsStudents', JSON.stringify(students));
+        }
+
+        function loadStudents() {
+            const saved = localStorage.getItem('classToolsStudents');
+            if (saved) {
+                students = JSON.parse(saved);
+                const calledStudents = new Set(students.filter(s => !uncalledStudents.includes(s)));
+                uncalledStudents = students.filter(s => !calledStudents.has(s));
+                if (uncalledStudents.length === 0 && students.length > 0) {
+                   uncalledStudents = [...students];
+                }
+            }
+        }
+
+        // --- RENDERIZADO ---
+        function renderStudentList() {
+            studentListEl.innerHTML = '';
+            if (students.length === 0) {
+                emptyStudentListEl.classList.remove('hidden');
+                studentListEl.classList.add('hidden');
+            } else {
+                emptyStudentListEl.classList.add('hidden');
+                studentListEl.classList.remove('hidden');
+                students.forEach((student, index) => {
+                    const studentDiv = document.createElement('div');
+                    studentDiv.className = 'flex items-center justify-between bg-slate-50 p-2 rounded-md text-sm';
+                    studentDiv.innerHTML = `
+                        <span class="text-slate-700">${student}</span>
+                        <button data-index="${index}" class="remove-student-btn text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
+                    `;
+                    studentListEl.appendChild(studentDiv);
+                });
+            }
+            // Actualizar input de grupos max
+            document.getElementById('groupCount').max = students.length || 2;
+        }
+
+        function renderFairTool() {
+            const remaining = uncalledStudents.length;
+            fairToolContentEl.innerHTML = `
+                <button id="runFair" class="bg-green-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-600 transition-transform hover:scale-105 text-lg">Seleccionar Participante</button>
+                <p class="text-sm text-slate-400 mt-4">Faltan ${remaining} de ${students.length} alumnos.</p>
+                ${remaining === 0 && students.length > 0 ? '<button id="resetFair" class="text-sm text-blue-500 hover:underline mt-2">Reiniciar ciclo</button>' : ''}
+            `;
+            document.getElementById('runFair').addEventListener('click', runFairSelection);
+            if(document.getElementById('resetFair')) {
+                 document.getElementById('resetFair').addEventListener('click', () => {
+                    uncalledStudents = [...students];
+                    renderFairTool();
+                 });
+            }
+        }
+        
+        // --- LÓGICA DE HERRAMIENTAS ---
+        function runFairSelection() {
+            if (students.length === 0) {
+                 alert("Añade alumnos a la lista primero.");
+                 return;
+            }
+            if (uncalledStudents.length === 0) {
+                 alert("Todos los alumnos ya participaron. Reinicia el ciclo.");
+                 return;
+            }
+            const randomIndex = Math.floor(Math.random() * uncalledStudents.length);
+            const selected = uncalledStudents.splice(randomIndex, 1)[0];
+            showResult('Participante', `<p class="text-4xl font-bold text-green-600">${selected}</p>`);
+            renderFairTool();
+        }
+
+        function runGroupFormation() {
+            const groupCount = parseInt(document.getElementById('groupCount').value, 10);
+            if (students.length < 2) {
+                alert("Necesitas al menos 2 alumnos para formar grupos.");
+                return;
+            }
+             if (isNaN(groupCount) || groupCount < 2 || groupCount > students.length) {
+                alert("Por favor, introduce un número válido de grupos.");
+                return;
+            }
+
+            let shuffled = [...students].sort(() => 0.5 - Math.random());
+            let groups = Array.from({ length: groupCount }, () => []);
+            
+            shuffled.forEach((student, index) => {
+                groups[index % groupCount].push(student);
+            });
+
+            let resultHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-h-80 overflow-y-auto">`;
+            groups.forEach((group, index) => {
+                resultHTML += `<div><h4 class="font-semibold mb-2 border-b">Grupo ${index + 1}</h4><ul class="list-disc list-inside text-slate-600">`;
+                group.forEach(student => {
+                    resultHTML += `<li>${student}</li>`;
+                });
+                resultHTML += '</ul></div>';
+            });
+            resultHTML += '</div>';
+            showResult('Grupos Formados', resultHTML);
+        }
+
+        // --- MODAL ---
+        function showResult(title, body) {
+            resultTitle.textContent = title;
+            resultBody.innerHTML = body;
+            resultModal.classList.remove('hidden');
+        }
+
+        function hideResult() {
+            resultModal.classList.add('hidden');
+        }
+
+        // --- LÓGICA DE IMPORTACIÓN CSV ---
+        function parseStudentsFromCsv(fileContent) {
+            if (!fileContent || typeof fileContent !== 'string') return [];
+            const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
+            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
+            const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
+            return dataLines.map(line => {
+                return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
+            }).filter(name => name);
+        }
+
+        importCsvBtn.addEventListener('click', () => importCsvInput.click());
+        importCsvInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const studentNames = parseStudentsFromCsv(e.target.result);
+                const existingNames = new Set(students.map(s => s.toLowerCase()));
+                let addedCount = 0;
+                
+                studentNames.forEach(name => {
+                    if (!existingNames.has(name.toLowerCase())) {
+                        students.push(name);
+                        uncalledStudents.push(name);
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveStudents();
+                    renderStudentList();
+                    renderFairTool();
+                    alert(`${addedCount} alumno(s) importado(s) con éxito.`);
+                } else {
+                    alert("No se agregaron alumnos nuevos (posiblemente ya existían).");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        });
+
+        // --- EVENT LISTENERS ---
+        addStudentForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = studentNameInput.value.trim();
+            if (name) {
+                students.push(name);
+                uncalledStudents.push(name);
+                studentNameInput.value = '';
+                saveStudents();
+                renderStudentList();
+                renderFairTool();
+            }
+        });
+
+        studentListEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-student-btn')) {
+                const index = parseInt(e.target.dataset.index, 10);
+                const removedStudent = students.splice(index, 1)[0];
+                uncalledStudents = uncalledStudents.filter(s => s !== removedStudent);
+                saveStudents();
+                renderStudentList();
+                renderFairTool();
+            }
+        });
+        
+        runGroupsBtn.addEventListener('click', runGroupFormation);
+        closeResultModal.addEventListener('click', hideResult);
+
+        // --- INICIALIZACIÓN ---
+        loadStudents();
+        renderStudentList();
+        renderFairTool();
+    });
+    </script>
+</body>
+</html>
+

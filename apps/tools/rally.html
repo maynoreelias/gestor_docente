@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador de Rotaciones</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .station-card {
+            transition: all 0.5s ease-in-out;
+        }
+        .group-tag {
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800 p-4 sm:p-6 lg:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-4xl font-bold text-slate-800">Rotación por Estaciones</h1>
+            <p class="text-slate-500 mt-1">Organiza el trabajo en centros de aprendizaje.</p>
+        </header>
+
+        <!-- Controles Principales -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center justify-center gap-4">
+             <div class="flex items-center gap-2">
+                <span class="font-semibold">Ronda:</span>
+                <span id="round-display" class="text-2xl font-bold text-blue-600">1</span>
+            </div>
+            <button id="rotate-btn" class="bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-blue-600 transition-transform hover:scale-105 text-lg">
+                <i class="fas fa-sync-alt mr-2"></i> Rotar
+            </button>
+            <div class="flex items-center gap-3">
+                 <input type="number" id="timer-input" value="10" min="1" class="w-20 border border-slate-300 rounded-md p-2 text-center">
+                 <button id="timer-toggle-btn" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-md shadow w-28">Iniciar Timer</button>
+                 <div id="timer-display" class="text-2xl font-bold text-slate-700">10:00</div>
+            </div>
+             <button id="setup-toggle-btn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md shadow hover:bg-gray-300">
+                <i class="fas fa-cog"></i> Configuración
+             </button>
+        </div>
+
+        <!-- Panel de Configuración (Oculto por defecto) -->
+        <div id="setup-panel" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Configuración de Estaciones -->
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-semibold mb-4">Estaciones</h2>
+                <form id="add-station-form" class="flex gap-2 mb-3">
+                    <input type="text" id="station-input" placeholder="Nombre de la estación" class="w-full border-gray-300 rounded p-2 text-sm" required>
+                    <button type="submit" class="bg-cyan-500 text-white px-3 rounded shadow hover:bg-cyan-600">Añadir</button>
+                </form>
+                <div id="station-list" class="space-y-1"></div>
+            </div>
+             <!-- Configuración de Grupos -->
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-semibold mb-4">Grupos</h2>
+                <form id="add-group-form" class="flex gap-2 mb-3">
+                    <input type="text" id="group-input" placeholder="Nombre del grupo" class="w-full border-gray-300 rounded p-2 text-sm" required>
+                    <button type="submit" class="bg-purple-500 text-white px-3 rounded shadow hover:bg-purple-600">Añadir</button>
+                </form>
+                <div id="group-list" class="space-y-1"></div>
+            </div>
+        </div>
+
+        <!-- Visualización de Estaciones -->
+        <div id="stations-display" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Las estaciones se renderizan aquí -->
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ESTADO ---
+        let stations = ["Lectura", "Tecnología", "Escritura", "Con el Maestro"];
+        let groups = ["Grupo 1", "Grupo 2", "Grupo 3", "Grupo 4"];
+        let round = 1;
+
+        // Timer State
+        let timerInterval = null;
+        let timerTotalSeconds = 600;
+        let timerSecondsRemaining = 600;
+
+        // --- ELEMENTOS DEL DOM ---
+        const stationsDisplay = document.getElementById('stations-display');
+        const setupPanel = document.getElementById('setup-panel');
+        const setupToggleBtn = document.getElementById('setup-toggle-btn');
+        const stationList = document.getElementById('station-list');
+        const groupList = document.getElementById('group-list');
+        const addStationForm = document.getElementById('add-station-form');
+        const addGroupForm = document.getElementById('add-group-form');
+        const stationInput = document.getElementById('station-input');
+        const groupInput = document.getElementById('group-input');
+        const rotateBtn = document.getElementById('rotate-btn');
+        const roundDisplay = document.getElementById('round-display');
+        const timerInput = document.getElementById('timer-input');
+        const timerToggleBtn = document.getElementById('timer-toggle-btn');
+        const timerDisplay = document.getElementById('timer-display');
+
+        // --- LOCAL STORAGE ---
+        function saveData() {
+            localStorage.setItem('rotationStations', JSON.stringify(stations));
+            localStorage.setItem('rotationGroups', JSON.stringify(groups));
+        }
+
+        function loadData() {
+            const savedStations = localStorage.getItem('rotationStations');
+            const savedGroups = localStorage.getItem('rotationGroups');
+            if (savedStations) stations = JSON.parse(savedStations);
+            if (savedGroups) groups = JSON.parse(savedGroups);
+        }
+
+        // --- RENDERIZADO ---
+        function render() {
+            renderSetupLists();
+            renderStations();
+        }
+
+        function renderSetupLists() {
+            stationList.innerHTML = stations.map((s, i) => `<div class="flex justify-between items-center text-sm p-1 bg-slate-50 rounded"><span>${s}</span><button class="remove-btn text-red-400" data-type="station" data-index="${i}">&times;</button></div>`).join('');
+            groupList.innerHTML = groups.map((g, i) => `<div class="flex justify-between items-center text-sm p-1 bg-slate-50 rounded"><span>${g}</span><button class="remove-btn text-red-400" data-type="group" data-index="${i}">&times;</button></div>`).join('');
+        }
+
+        function renderStations() {
+            stationsDisplay.innerHTML = '';
+            stations.forEach((station, index) => {
+                const groupIndex = (index + round - 1) % groups.length;
+                const groupName = groups[groupIndex] || '---';
+
+                const card = document.createElement('div');
+                card.className = 'station-card bg-white rounded-lg shadow-lg p-4 text-center';
+                card.innerHTML = `
+                    <h3 class="text-xl font-bold mb-4 h-14 flex items-center justify-center">${station}</h3>
+                    <div class="group-tag bg-blue-100 text-blue-800 text-lg font-semibold rounded-full px-4 py-2">${groupName}</div>
+                `;
+                stationsDisplay.appendChild(card);
+            });
+            roundDisplay.textContent = round;
+        }
+
+        // --- LÓGICA DE GESTIÓN ---
+        function addItem(type, value) {
+            if (!value) return;
+            const list = type === 'station' ? stations : groups;
+            list.push(value);
+            saveData();
+            render();
+        }
+
+        function removeItem(type, index) {
+            const list = type === 'station' ? stations : groups;
+            list.splice(index, 1);
+            saveData();
+            render();
+        }
+
+        function rotate() {
+            if (groups.length === 0) return;
+            round++;
+            if (round > groups.length) {
+                round = 1;
+            }
+            renderStations();
+            resetTimer();
+        }
+
+        // --- LÓGICA DEL TIMER ---
+        function setTimer() {
+            const minutes = parseInt(timerInput.value, 10);
+            if(isNaN(minutes) || minutes < 1) return;
+            timerTotalSeconds = minutes * 60;
+            timerSecondsRemaining = timerTotalSeconds;
+            updateTimerDisplay();
+        }
+
+        function toggleTimer() {
+             if (timerInterval) { // Pausar
+                clearInterval(timerInterval);
+                timerInterval = null;
+                timerToggleBtn.textContent = 'Continuar';
+                timerToggleBtn.classList.replace('bg-green-500', 'bg-yellow-500');
+            } else { // Iniciar
+                setTimer();
+                timerToggleBtn.textContent = 'Pausa';
+                timerToggleBtn.classList.replace('bg-yellow-500', 'bg-green-500');
+                timerInterval = setInterval(() => {
+                    timerSecondsRemaining--;
+                    updateTimerDisplay();
+                    if(timerSecondsRemaining <= 0) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                        playTimerEndSound();
+                    }
+                }, 1000);
+            }
+        }
+        
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerToggleBtn.textContent = 'Iniciar Timer';
+            timerToggleBtn.classList.remove('bg-yellow-500');
+            timerToggleBtn.classList.add('bg-green-500');
+            setTimer();
+        }
+        
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timerSecondsRemaining / 60);
+            const seconds = timerSecondsRemaining % 60;
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        function playTimerEndSound() {
+             try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.connect(audioCtx.destination);
+                oscillator.start();
+                setTimeout(() => { oscillator.stop(); audioCtx.close(); }, 800);
+            } catch (e) { console.error("Could not play sound:", e); }
+        }
+
+        // --- EVENT LISTENERS ---
+        setupToggleBtn.addEventListener('click', () => setupPanel.classList.toggle('hidden'));
+        addStationForm.addEventListener('submit', (e) => { e.preventDefault(); addItem('station', stationInput.value.trim()); stationInput.value = ''; });
+        addGroupForm.addEventListener('submit', (e) => { e.preventDefault(); addItem('group', groupInput.value.trim()); groupInput.value = ''; });
+        
+        document.body.addEventListener('click', (e) => {
+            if(e.target.classList.contains('remove-btn')) {
+                removeItem(e.target.dataset.type, parseInt(e.target.dataset.index, 10));
+            }
+        });
+
+        rotateBtn.addEventListener('click', rotate);
+        timerInput.addEventListener('change', setTimer);
+        timerToggleBtn.addEventListener('click', toggleTimer);
+
+
+        // --- INICIALIZACIÓN ---
+        loadData();
+        render();
+        updateTimerDisplay();
+    });
+    </script>
+</body>
+</html>
+

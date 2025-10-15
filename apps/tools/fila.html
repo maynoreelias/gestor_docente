@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fila de Turnos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .turn-card-enter {
+            animation: fadeIn 0.5s ease-out;
+        }
+        .queue-item-enter {
+             animation: slideIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-slate-800">Fila de Turnos</h1>
+            <p class="text-slate-500 mt-1">Gestiona la participación de forma ordenada.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna Principal: Turno Actual y Siguiente -->
+            <div class="md:col-span-2 space-y-6">
+                <div class="bg-white p-8 rounded-lg shadow-lg text-center">
+                    <h2 class="text-lg font-semibold text-slate-500 mb-2">Turno Actual:</h2>
+                    <div id="current-turn-display" class="min-h-[120px] flex items-center justify-center">
+                        <!-- El participante actual se muestra aquí -->
+                    </div>
+                    <button id="next-turn-btn" class="mt-4 bg-blue-500 text-white font-bold py-3 px-10 rounded-lg shadow-lg hover:bg-blue-600 transition-transform hover:scale-105 text-lg">
+                        Siguiente <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+                 <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-lg font-semibold mb-3">En Espera:</h2>
+                    <div id="queue-list" class="space-y-2">
+                        <!-- La lista de espera se muestra aquí -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna de Gestión -->
+            <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-sm h-fit">
+                <h2 class="text-lg font-semibold mb-4">Añadir a la Fila</h2>
+                <form id="addStudentForm" class="flex gap-2 mb-4">
+                    <input type="text" id="studentNameInput" placeholder="Nombre del alumno" class="flex-grow w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
+                    <button type="submit" class="bg-cyan-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors text-sm">Añadir</button>
+                </form>
+                <button id="clear-queue-btn" class="w-full bg-red-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-red-600 transition-colors text-sm">
+                    <i class="fas fa-trash-alt mr-1"></i> Limpiar Fila
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ESTADO ---
+        let queue = [];
+        let currentTurn = null;
+
+        // --- ELEMENTOS DEL DOM ---
+        const addStudentForm = document.getElementById('addStudentForm');
+        const studentNameInput = document.getElementById('studentNameInput');
+        const currentTurnDisplay = document.getElementById('current-turn-display');
+        const queueList = document.getElementById('queue-list');
+        const nextTurnBtn = document.getElementById('next-turn-btn');
+        const clearQueueBtn = document.getElementById('clear-queue-btn');
+
+        // --- RENDERIZADO ---
+        function render() {
+            // Renderizar turno actual
+            currentTurnDisplay.innerHTML = '';
+            if (currentTurn) {
+                const turnCard = document.createElement('div');
+                turnCard.className = 'turn-card-enter';
+                turnCard.innerHTML = `<p class="text-5xl font-bold text-blue-600">${currentTurn}</p>`;
+                currentTurnDisplay.appendChild(turnCard);
+            } else {
+                currentTurnDisplay.innerHTML = `<p class="text-2xl text-slate-400">Nadie en turno. ¡Añade a alguien!</p>`;
+            }
+
+            // Renderizar la lista de espera
+            queueList.innerHTML = '';
+            if (queue.length > 0) {
+                queue.forEach((student, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'queue-item-enter flex items-center justify-between bg-slate-50 p-3 rounded-md';
+                    item.innerHTML = `
+                        <div>
+                            <span class="text-slate-400 font-semibold mr-3">${index + 1}.</span>
+                            <span class="text-slate-700">${student}</span>
+                        </div>
+                        <button data-name="${student}" class="remove-student-btn text-red-400 hover:text-red-600 font-bold">&times;</button>
+                    `;
+                    queueList.appendChild(item);
+                });
+            } else {
+                queueList.innerHTML = `<p class="text-center text-slate-400 py-4">La fila de espera está vacía.</p>`;
+            }
+        }
+        
+        // --- LÓGICA DE GESTIÓN ---
+        function addStudent(name) {
+            if (name && !queue.includes(name) && currentTurn !== name) {
+                queue.push(name);
+                if (!currentTurn) {
+                    nextTurn();
+                } else {
+                    render();
+                }
+            }
+        }
+
+        function removeStudent(name) {
+            queue = queue.filter(student => student !== name);
+            render();
+        }
+
+        function nextTurn() {
+            if (queue.length > 0) {
+                currentTurn = queue.shift();
+            } else {
+                currentTurn = null;
+            }
+            render();
+        }
+
+        function clearQueue() {
+            if (confirm("¿Estás seguro de que quieres limpiar toda la fila?")) {
+                queue = [];
+                currentTurn = null;
+                render();
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        addStudentForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = studentNameInput.value.trim();
+            addStudent(name);
+            studentNameInput.value = '';
+        });
+
+        nextTurnBtn.addEventListener('click', nextTurn);
+        clearQueueBtn.addEventListener('click', clearQueue);
+
+        queueList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-student-btn')) {
+                const nameToRemove = e.target.dataset.name;
+                removeStudent(nameToRemove);
+            }
+        });
+
+        // --- INICIALIZACIÓN ---
+        render();
+    });
+    </script>
+</body>
+</html>
+

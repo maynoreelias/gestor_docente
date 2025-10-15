@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checklist de Tareas</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .task-item.completed span {
+            text-decoration: line-through;
+            color: #9ca3af; /* gray-400 */
+        }
+         .task-item.completed .checkbox-icon {
+            background-color: #22c55e; /* green-500 */
+            color: white;
+            border-color: #22c55e;
+        }
+        .task-item {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800 p-4 sm:p-6 lg:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-slate-800">Agenda del día</h1>
+            <p class="text-slate-500 mt-1">Actividades para esta sesión</p>
+        </header>
+
+        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+            <div id="task-list" class="space-y-4">
+                <!-- Las tareas se renderizan aquí -->
+            </div>
+        </div>
+        
+        <div class="bg-white p-4 rounded-lg shadow-sm mt-6">
+             <form id="addTaskForm" class="flex items-center gap-4">
+                <input type="text" id="taskInput" placeholder="Añadir nueva tarea..." class="w-full border-gray-300 rounded-md p-3 text-lg focus:ring-2 focus:ring-blue-500" required>
+                <button type="submit" class="bg-blue-500 text-white font-bold py-3 px-6 rounded-md shadow hover:bg-blue-600 transition-colors">Añadir</button>
+            </form>
+            <div class="mt-4 flex justify-end gap-2">
+                 <button id="save-list-btn" class="text-sm bg-green-500 text-white font-semibold py-1 px-3 rounded-md shadow hover:bg-green-600 transition-colors">Guardar Lista</button>
+                 <button id="load-list-btn" class="text-sm bg-gray-500 text-white font-semibold py-1 px-3 rounded-md shadow hover:bg-gray-600 transition-colors">Cargar Lista</button>
+                 <button id="reset-list-btn" class="text-sm bg-red-500 text-white font-semibold py-1 px-3 rounded-md shadow hover:bg-red-600 transition-colors">Limpiar Todo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ESTADO ---
+        let tasks = [];
+
+        // --- ELEMENTOS DEL DOM ---
+        const taskListEl = document.getElementById('task-list');
+        const addTaskForm = document.getElementById('addTaskForm');
+        const taskInput = document.getElementById('taskInput');
+        const resetListBtn = document.getElementById('reset-list-btn');
+        const saveListBtn = document.getElementById('save-list-btn');
+        const loadListBtn = document.getElementById('load-list-btn');
+
+        // --- LOCAL STORAGE ---
+        function saveTasks(key = 'projectableTasks') {
+            localStorage.setItem(key, JSON.stringify(tasks));
+            alert("Lista guardada!");
+        }
+
+        function loadTasks(key = 'projectableTasks') {
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                tasks = JSON.parse(saved);
+                render();
+                 alert("Lista cargada!");
+            } else {
+                 alert("No hay ninguna lista guardada.");
+            }
+        }
+        
+        // --- RENDERIZADO ---
+        function render() {
+            taskListEl.innerHTML = '';
+            if (tasks.length === 0) {
+                taskListEl.innerHTML = `<p class="text-center text-slate-400 text-xl py-12">Añade una tarea para comenzar.</p>`;
+                return;
+            }
+            tasks.forEach((task, index) => {
+                const taskItem = document.createElement('div');
+                taskItem.className = `task-item flex items-center gap-4 p-4 rounded-lg border ${task.completed ? 'completed bg-slate-50' : 'bg-white'}`;
+                taskItem.innerHTML = `
+                    <div data-index="${index}" class="checkbox-icon flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full border-2 border-gray-300 cursor-pointer transition-colors">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span class="flex-grow text-2xl">${task.text}</span>
+                    <button data-index="${index}" class="remove-task-btn text-gray-400 hover:text-red-500 text-xl">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+                taskListEl.appendChild(taskItem);
+            });
+        }
+
+        // --- LÓGICA DE GESTIÓN ---
+        function addTask(text) {
+            if(text) {
+                tasks.push({ text: text, completed: false });
+                render();
+            }
+        }
+        
+        function toggleTask(index) {
+            tasks[index].completed = !tasks[index].completed;
+            render();
+        }
+
+        function removeTask(index) {
+            tasks.splice(index, 1);
+            render();
+        }
+
+        function resetList() {
+             if (confirm("¿Estás seguro de que quieres borrar todas las tareas de la lista?")) {
+                tasks = [];
+                render();
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        addTaskForm.addEventListener('submit', e => {
+            e.preventDefault();
+            addTask(taskInput.value.trim());
+            taskInput.value = '';
+        });
+
+        taskListEl.addEventListener('click', e => {
+            const checkbox = e.target.closest('.checkbox-icon');
+            const removeBtn = e.target.closest('.remove-task-btn');
+
+            if (checkbox) {
+                toggleTask(parseInt(checkbox.dataset.index, 10));
+            }
+            if (removeBtn) {
+                removeTask(parseInt(removeBtn.dataset.index, 10));
+            }
+        });
+
+        resetListBtn.addEventListener('click', resetList);
+        saveListBtn.addEventListener('click', () => saveTasks());
+        loadListBtn.addEventListener('click', () => loadTasks());
+
+        // --- INICIALIZACIÓN ---
+        // Cargar una lista por defecto para demostración
+        tasks = [
+            { text: "Escribir tu nombre en la hoja", completed: false},
+            { text: "Leer las instrucciones en silencio", completed: false},
+            { text: "Completar la actividad", completed: false},
+            { text: "Entregar el trabajo en la bandeja", completed: false}
+        ];
+        render();
+    });
+    </script>
+</body>
+</html>
+

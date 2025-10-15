@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Puntos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .points-display {
+            transition: transform 0.2s ease-in-out, color 0.2s;
+        }
+        .points-display.increased {
+            transform: scale(1.2);
+            color: #16a34a; /* green-600 */
+        }
+        .points-display.decreased {
+            transform: scale(1.2);
+            color: #dc2626; /* red-600 */
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800">Gestor de Puntos de Clase</h1>
+            <p class="text-slate-500 mt-1">Refuerza el comportamiento positivo y la participación.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna de Gestión de Alumnos -->
+            <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-sm h-fit">
+                <h2 class="text-lg font-semibold mb-4">Lista de Clase</h2>
+                <form id="addStudentForm" class="flex gap-2 mb-4">
+                    <input type="text" id="studentNameInput" placeholder="Nombre del alumno" class="flex-grow w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
+                    <button type="submit" class="bg-cyan-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors text-sm">Añadir</button>
+                </form>
+                <button id="importCsvBtn" class="w-full bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-green-600 transition-colors text-sm mb-4">Importar CSV</button>
+                <div id="student-list-preview" class="space-y-2 max-h-80 overflow-y-auto">
+                    <!-- Preview de la lista de alumnos -->
+                </div>
+                 <div id="empty-student-list" class="hidden text-center py-8 text-sm text-slate-400">
+                    Añade o importa alumnos para empezar.
+                </div>
+            </div>
+
+            <!-- Columna de Puntos -->
+            <div class="md:col-span-2">
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold">Tabla de Puntos</h2>
+                        <button id="reset-points-btn" class="text-sm bg-red-500 text-white font-semibold py-1 px-3 rounded-md shadow hover:bg-red-600 transition-colors">
+                            <i class="fas fa-sync-alt mr-1"></i> Reiniciar Puntos
+                        </button>
+                    </div>
+                    <div id="points-tracker" class="space-y-2">
+                       <!-- Tabla de puntos se renderiza aquí -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input oculto para importar CSV -->
+    <input type="file" id="importCsvInput" class="hidden" accept=".csv,.txt">
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ESTADO ---
+        // Ahora students es un array de objetos
+        let students = [];
+
+        // --- ELEMENTOS DEL DOM ---
+        const addStudentForm = document.getElementById('addStudentForm');
+        const studentNameInput = document.getElementById('studentNameInput');
+        const studentListPreviewEl = document.getElementById('student-list-preview');
+        const emptyStudentListEl = document.getElementById('empty-student-list');
+        const pointsTrackerEl = document.getElementById('points-tracker');
+        const importCsvBtn = document.getElementById('importCsvBtn');
+        const importCsvInput = document.getElementById('importCsvInput');
+        const resetPointsBtn = document.getElementById('reset-points-btn');
+
+        // --- LOCAL STORAGE ---
+        function saveStudents() {
+            localStorage.setItem('classPointsStudents', JSON.stringify(students));
+        }
+
+        function loadStudents() {
+            const saved = localStorage.getItem('classPointsStudents');
+            if (saved) {
+                students = JSON.parse(saved);
+            }
+        }
+
+        // --- RENDERIZADO ---
+        function render() {
+            studentListPreviewEl.innerHTML = '';
+            pointsTrackerEl.innerHTML = '';
+
+            if (students.length === 0) {
+                emptyStudentListEl.classList.remove('hidden');
+                studentListPreviewEl.classList.add('hidden');
+                pointsTrackerEl.innerHTML = `<p class="text-center text-slate-400 py-10">Añade alumnos para empezar a dar puntos.</p>`;
+                return;
+            }
+            
+            emptyStudentListEl.classList.add('hidden');
+            studentListPreviewEl.classList.remove('hidden');
+
+            students.forEach((student, index) => {
+                // Renderizar lista de preview
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'flex items-center justify-between bg-slate-50 p-2 rounded-md text-sm';
+                previewDiv.innerHTML = `
+                    <span class="text-slate-700">${student.name}</span>
+                    <button data-index="${index}" class="remove-student-btn text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
+                `;
+                studentListPreviewEl.appendChild(previewDiv);
+
+                // Renderizar tabla de puntos
+                const pointsDiv = document.createElement('div');
+                pointsDiv.className = 'flex items-center justify-between bg-slate-50 p-3 rounded-lg';
+                pointsDiv.innerHTML = `
+                    <span class="font-semibold text-slate-700">${student.name}</span>
+                    <div class="flex items-center gap-4">
+                        <button data-index="${index}" class="subtract-point-btn bg-red-200 text-red-700 w-8 h-8 rounded-full font-bold text-lg hover:bg-red-300 transition-colors">-</button>
+                        <span data-points-for="${index}" class="points-display text-2xl font-bold w-12 text-center">${student.points}</span>
+                        <button data-index="${index}" class="add-point-btn bg-green-200 text-green-700 w-8 h-8 rounded-full font-bold text-lg hover:bg-green-300 transition-colors">+</button>
+                    </div>
+                `;
+                pointsTrackerEl.appendChild(pointsDiv);
+            });
+        }
+        
+        // --- LÓGICA DE GESTIÓN ---
+        function addStudent(name) {
+            if (name && !students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+                students.push({ name: name, points: 0 });
+                saveStudents();
+                render();
+            }
+        }
+
+        function removeStudent(index) {
+            students.splice(index, 1);
+            saveStudents();
+            render();
+        }
+
+        function addPoint(index) {
+            students[index].points++;
+            updatePointsUI(index, 'increased');
+        }
+
+        function subtractPoint(index) {
+            if (students[index].points > 0) {
+                students[index].points--;
+                updatePointsUI(index, 'decreased');
+            }
+        }
+        
+        function resetAllPoints() {
+            if (confirm("¿Estás seguro de que quieres reiniciar los puntos de todos los alumnos a cero?")) {
+                students.forEach(student => student.points = 0);
+                saveStudents();
+                render();
+            }
+        }
+
+        function updatePointsUI(index, effect) {
+             const pointDisplay = document.querySelector(`[data-points-for="${index}"]`);
+             if (pointDisplay) {
+                pointDisplay.textContent = students[index].points;
+                pointDisplay.classList.add(effect);
+                setTimeout(() => {
+                    pointDisplay.classList.remove(effect);
+                    saveStudents(); // Guardar después de la animación para una sensación más rápida
+                }, 200);
+             }
+        }
+
+
+        // --- LÓGICA DE IMPORTACIÓN CSV ---
+        function parseStudentsFromCsv(fileContent) {
+            // Misma función de parseo que en el archivo original
+             if (!fileContent || typeof fileContent !== 'string') return [];
+            const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
+            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
+            const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
+            return dataLines.map(line => {
+                return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
+            }).filter(name => name);
+        }
+
+        importCsvBtn.addEventListener('click', () => importCsvInput.click());
+        importCsvInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const studentNames = parseStudentsFromCsv(e.target.result);
+                let addedCount = 0;
+                
+                studentNames.forEach(name => {
+                     if (!students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+                        students.push({ name: name, points: 0 });
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveStudents();
+                    render();
+                    alert(`${addedCount} alumno(s) importado(s) con éxito.`);
+                } else {
+                    alert("No se agregaron alumnos nuevos (posiblemente ya existían).");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        });
+
+        // --- EVENT LISTENERS ---
+        addStudentForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = studentNameInput.value.trim();
+            addStudent(name);
+            studentNameInput.value = '';
+        });
+
+        studentListPreviewEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-student-btn')) {
+                const index = parseInt(e.target.dataset.index, 10);
+                removeStudent(index);
+            }
+        });
+
+        pointsTrackerEl.addEventListener('click', e => {
+            if (e.target.classList.contains('add-point-btn')) {
+                addPoint(parseInt(e.target.dataset.index, 10));
+            }
+            if (e.target.classList.contains('subtract-point-btn')) {
+                subtractPoint(parseInt(e.target.dataset.index, 10));
+            }
+        });
+
+        resetPointsBtn.addEventListener('click', resetAllPoints);
+
+        // --- INICIALIZACIÓN ---
+        loadStudents();
+        render();
+    });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medidor de Ruido para el Aula</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --control-bg: #ffffff;
+            --border-color: #e9ecef;
+            --font-family: 'Inter', sans-serif;
+            --c-calm: #20c997;
+            --c-warn: #fd7e14;
+            --c-loud: #e63946;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100vh;
+            background-color: var(--bg-color); color: var(--text-color);
+            font-family: var(--font-family);
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .container {
+            width: 100%; max-width: 500px;
+            background-color: var(--control-bg);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.07);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        h1 { margin: 0 0 24px 0; font-size: 1.75rem; }
+
+        /* --- Visualizer --- */
+        #visualizer {
+            position: relative;
+            width: 250px; height: 250px;
+            margin: 0 auto 24px auto;
+        }
+        #visualizer svg {
+            width: 100%; height: 100%;
+            transform: rotate(-90deg);
+        }
+        #visualizer circle {
+            fill: none;
+            stroke-width: 12;
+            transition: stroke 0.2s, stroke-dashoffset 0.1s linear;
+        }
+        #level-indicator {
+            stroke-linecap: round;
+        }
+
+        /* --- Controls --- */
+        #start-stop-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 150px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .controls-panel {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .control-group label {
+            font-weight: 500;
+        }
+        
+        /* --- Slider --- */
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 150px; height: 8px;
+            background: #dee2e6;
+            border-radius: 5px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px;
+            background: var(--c-calm);
+            border-radius: 50%; cursor: pointer;
+        }
+
+        /* --- Toggle Switch --- */
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: "";
+            height: 20px; width: 20px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--c-calm); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Medidor de Ruido</h1>
+
+        <div id="visualizer">
+            <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" stroke="#e9ecef" />
+                <circle id="level-indicator" cx="50" cy="50" r="42" stroke="var(--c-calm)" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" />
+            </svg>
+        </div>
+
+        <button id="start-stop-btn" style="background-color: #0d6efd;">Empezar</button>
+
+        <div class="controls-panel">
+            <div class="control-group">
+                <label for="sensitivity-slider">Sensibilidad</label>
+                <input type="range" id="sensitivity-slider" min="10" max="60" value="35">
+            </div>
+            <div class="control-group">
+                <label for="alarm-toggle">Alarma audible</label>
+                <label class="switch">
+                    <input type="checkbox" id="alarm-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let audioContext, microphone, analyser, animationFrameId;
+        let timeInRed = 0;
+        let lastFrameTime = performance.now();
+
+        const startStopBtn = document.getElementById('start-stop-btn');
+        const levelIndicator = document.getElementById('level-indicator');
+        const sensitivitySlider = document.getElementById('sensitivity-slider');
+        const alarmToggle = document.getElementById('alarm-toggle');
+
+        function cleanup() {
+            cancelAnimationFrame(animationFrameId);
+            if (microphone) microphone.getTracks().forEach(track => track.stop());
+            if (audioContext && audioContext.state !== 'closed') audioContext.close();
+            audioContext = microphone = analyser = animationFrameId = null;
+        }
+
+        async function toggleMeter() {
+            if (audioContext && audioContext.state === 'running') {
+                cleanup();
+                startStopBtn.textContent = 'Empezar';
+                startStopBtn.style.backgroundColor = '#0d6efd';
+                levelIndicator.style.strokeDashoffset = 100;
+            } else {
+                await startMeter();
+            }
+        }
+
+        async function startMeter() {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                alert("Tu navegador no soporta acceso al micrófono.");
+                return;
+            }
+            try {
+                cleanup();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = stream;
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+                
+                startStopBtn.textContent = 'Detener';
+                startStopBtn.style.backgroundColor = '#dc3545';
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                lastFrameTime = performance.now();
+
+                function updateMeter(currentTime) {
+                    if (!analyser) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                    
+                    const sensitivity = parseFloat(sensitivitySlider.value);
+                    const thresholdWarn = sensitivity;
+                    const thresholdLoud = sensitivity * 1.5;
+
+                    const level = Math.min(100, (average / 128) * 100 * (100 / (sensitivity * 2.5)));
+                    levelIndicator.style.strokeDashoffset = 100 - level;
+
+                    if (average > thresholdLoud) {
+                        levelIndicator.style.stroke = 'var(--c-loud)';
+                        if (alarmToggle.checked) {
+                            const deltaTime = currentTime - lastFrameTime;
+                            timeInRed += deltaTime;
+                            if (timeInRed >= 2000) {
+                                playAlarm();
+                                timeInRed = 0; 
+                            }
+                        }
+                    } else {
+                        timeInRed = 0;
+                        levelIndicator.style.stroke = average > thresholdWarn ? 'var(--c-warn)' : 'var(--c-calm)';
+                    }
+                    
+                    lastFrameTime = currentTime;
+                    animationFrameId = requestAnimationFrame(updateMeter);
+                }
+                animationFrameId = requestAnimationFrame(updateMeter);
+
+            } catch (err) {
+                alert("No se pudo acceder al micrófono. Por favor, revisa los permisos.");
+                cleanup();
+            }
+        }
+        
+        function playAlarm() {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        }
+
+        function saveSettings() {
+            localStorage.setItem('noiseMeterSettings', JSON.stringify({
+                sensitivity: sensitivitySlider.value,
+                alarm: alarmToggle.checked
+            }));
+        }
+
+        function loadSettings() {
+            const settings = JSON.parse(localStorage.getItem('noiseMeterSettings'));
+            if(settings) {
+                sensitivitySlider.value = settings.sensitivity || 35;
+                alarmToggle.checked = settings.alarm || false;
+            }
+        }
+
+        startStopBtn.addEventListener('click', toggleMeter);
+        sensitivitySlider.addEventListener('input', saveSettings);
+        alarmToggle.addEventListener('change', saveSettings);
+
+        loadSettings();
+    });
+    </script>
+</body>
+</html>
+
