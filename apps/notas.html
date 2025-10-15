@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale-1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestor de Notas para Docentes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -238,17 +238,36 @@
         const [name, setName] = useState(course?.name || '');
         const [grade, setGrade] = useState(course?.grade || '');
         const [year, setYear] = useState(course?.year || new Date().getFullYear());
-        const handleSubmit = (e) => { e.preventDefault(); if (name && grade && year) { onSave(name, grade, year); onClose(); } };
+        
+        // Logic to save the course
+        const handleSave = () => {
+            if (name && grade && year) {
+                onSave(name, grade, year);
+                onClose();
+            }
+        };
+
+        // This handler is for the form's onSubmit event (e.g., pressing Enter)
+        const handleSubmit = (e) => {
+            e.preventDefault();
+            handleSave();
+        };
+
         return (
+          // The onSubmit handler remains for accessibility (e.g., pressing Enter)
           <form onSubmit={handleSubmit} className="space-y-4">
             <div><label htmlFor="courseName" className="block text-sm font-medium text-slate-600">Nombre del Curso</label><input type="text" id="courseName" value={name} onChange={e => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500" /></div>
             <div><label htmlFor="courseGrade" className="block text-sm font-medium text-slate-600">Grado</label><input type="text" id="courseGrade" value={grade} onChange={e => setGrade(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500" /></div>
             <div><label htmlFor="courseYear" className="block text-sm font-medium text-slate-600">Año</label><input type="number" id="courseYear" value={year} onChange={e => setYear(Number(e.target.value))} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500" /></div>
-            <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200">Cancelar</button><button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600">Guardar Curso</button></div>
+            <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200">Cancelar</button>
+                {/* FIX for Safari/iPad: Use type="button" with an explicit onClick handler to prevent form submission issues. */}
+                <button type="button" onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-sky-500 rounded-md hover:bg-sky-600">Guardar Curso</button>
+            </div>
           </form>
         );
       };
-
+      
       const CourseListView = ({ courses, onSelectCourse, addCourse, updateCourse, deleteCourse, restoreCourses, STORAGE_KEY }) => {
         const [isModalOpen, setIsModalOpen] = useState(false);
         const [editingCourse, setEditingCourse] = useState(null);
@@ -486,3 +505,4 @@
     </script>
 </body>
 </html>
+
