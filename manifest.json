@@ -2,6 +2,11 @@
   "name": "Centro de Apps para Docentes",
   "short_name": "Apps Docente",
   "description": "Herramientas de gestión docente unificadas en un solo lugar.",
+  "lang": "es-ES",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "icons/icon-192x192.png",
@@ -11,11 +16,16 @@
     {
       "src": "icons/icon-512x512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable" 
     }
   ],
-  "start_url": "index.html",
-  "display": "standalone",
-  "background_color": "#f1f5f9",
-  "theme_color": "#ffffff"
+  "screenshots": [
+    {
+      "src": "screenshots/screenshot1.png",
+      "sizes": "1080x1920",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
 }
