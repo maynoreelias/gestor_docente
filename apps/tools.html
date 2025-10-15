@@ -1,532 +1,130 @@
+<!-- CÓDIGO COMPLETO PARA EL NUEVO SUB-LANZADOR: apps/tools.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Herramientas de Clase</title>
-    <!-- Tailwind CSS -->
+    <title>Herramientas de Aula</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-        .tool-tab.active {
-            border-color: #3b82f6; /* blue-500 */
-            background-color: #eff6ff; /* blue-50 */
-            color: #2563eb; /* blue-600 */
-        }
-        .result-modal-content {
-            animation: fadeIn 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        /* Estilos para el temporizador */
-        .timer-circle-bg {
-            fill: none;
-            stroke: #e5e7eb; /* gray-200 */
-        }
-        .timer-circle-progress {
-            fill: none;
-            stroke: #3b82f6; /* blue-500 */
-            stroke-linecap: round;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
-            transition: stroke-dashoffset 1s linear;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .tool-tile { transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out; }
+        .tool-tile:hover { transform: scale(1.05); background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        #tool-app-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; background-color: #f1f5f9; z-index: 50; }
+        #tool-iframe { flex-grow: 1; border: none; }
     </style>
 </head>
 <body class="antialiased text-slate-800">
 
-    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-800">Herramientas de Clase</h1>
-        </header>
+    <div id="tool-launcher-view">
+        <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+            <header class="text-center mb-12">
+                <h1 class="text-3xl sm:text-4xl font-bold text-slate-800">Herramientas de Aula</h1>
+            </header>
+            
+            <!-- Cuadrícula preparada para tus 10 herramientas -->
+            <main id="tool-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+                
+                <!-- 
+                ========================================================================
+                == INSTRUCCIÓN: Para cada una de tus 10 herramientas, crea un         ==
+                == 'div' como este. Asegúrate de que 'data-tool-src' apunte al       ==
+                == archivo correcto dentro de la carpeta 'tools/'.                  ==
+                == ¡Cambia el ícono (SVG) y el nombre para cada una!                ==
+                ========================================================================
+                -->
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- Columna de Gestión de Alumnos -->
-            <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-sm">
-                <h2 class="text-lg font-semibold mb-4">Lista de Clase</h2>
-                <form id="addStudentForm" class="flex gap-2 mb-4">
-                    <input type="text" id="studentNameInput" placeholder="Nombre del alumno" class="flex-grow w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none" required>
-                    <button type="submit" class="bg-cyan-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-cyan-600 transition-colors text-sm">Añadir</button>
-                </form>
-                <!-- ADDED: Import CSV button -->
-                <button id="importCsvBtn" class="w-full bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow hover:bg-green-600 transition-colors text-sm mb-4">Importar CSV</button>
-                <div id="student-list" class="space-y-2 max-h-80 overflow-y-auto">
-                    <!-- Lista de alumnos se renderiza aquí -->
-                </div>
-                 <div id="empty-student-list" class="hidden text-center py-8 text-sm text-slate-400">
-                    Añade o importa alumnos para empezar.
-                </div>
-            </div>
-
-            <!-- Columna de Herramientas -->
-            <div class="md:col-span-2">
-                <!-- Pestañas de Herramientas -->
-                <div class="flex border-b border-slate-200 mb-6">
-                    <button data-tool="fair" class="tool-tab flex-1 py-3 px-4 text-center font-semibold text-slate-600 border-b-2 border-transparent transition-colors">Participación</button>
-                    <button data-tool="groups" class="tool-tab flex-1 py-3 px-4 text-center font-semibold text-slate-600 border-b-2 border-transparent transition-colors">Grupos</button>
-                    <button data-tool="timer" class="tool-tab flex-1 py-3 px-4 text-center font-semibold text-slate-600 border-b-2 border-transparent transition-colors">Temporizador</button>
-                    <button data-tool="noise" class="tool-tab flex-1 py-3 px-4 text-center font-semibold text-slate-600 border-b-2 border-transparent transition-colors">Medidor de Ruido</button>
+                <!-- Herramienta 1: Selector Aleatorio -->
+                <div data-tool-src="tools/selector.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-sky-100 text-sky-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Selector Aleatorio</h2>
                 </div>
 
-                <!-- Contenido de Herramientas -->
-                <div id="tool-content" class="bg-white p-6 rounded-lg shadow-sm min-h-[300px] flex flex-col justify-center items-center">
-                    <!-- Contenido dinámico de la herramienta -->
+                <!-- Herramienta 2: Formar Grupos -->
+                <div data-tool-src="tools/grupos.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-indigo-100 text-indigo-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Formar Grupos</h2>
                 </div>
-            </div>
+
+                <!-- Herramienta 3: Temporizador -->
+                <div data-tool-src="tools/temporizador.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-amber-100 text-amber-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Temporizador</h2>
+                </div>
+
+                <!-- Herramienta 4: Medidor de Ruido -->
+                <div data-tool-src="tools/medidor_ruido.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-red-100 text-red-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.414z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Medidor de Ruido</h2>
+                </div>
+                
+                <!-- Herramienta 5: Dado Virtual -->
+                <div data-tool-src="tools/dado.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-green-100 text-green-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V5a1 1 0 00-1.447-.894l-4 2A1 1 0 0011 7v10zM4 17a1 1 0 001.447.894l4-2A1 1 0 0010 15V5a1 1 0 00-1.447-.894l-4 2A1 1 0 004 7v10z" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Dado Virtual</h2>
+                </div>
+                
+                <!-- Copia y pega este bloque para las herramientas 6 a 10, cambiando el src, ícono y nombre -->
+                <div data-tool-src="tools/herramienta6.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-gray-100 text-gray-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v1h-2V4a1 1 0 011-1zM5 5h10a1 1 0 011 1v1H4V6a1 1 0 011-1zM4 9h12v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Herramienta 6</h2>
+                </div>
+                <div data-tool-src="tools/herramienta7.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-gray-100 text-gray-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v1h-2V4a1 1 0 011-1zM5 5h10a1 1 0 011 1v1H4V6a1 1 0 011-1zM4 9h12v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Herramienta 7</h2>
+                </div>
+                <div data-tool-src="tools/herramienta8.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-gray-100 text-gray-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v1h-2V4a1 1 0 011-1zM5 5h10a1 1 0 011 1v1H4V6a1 1 0 011-1zM4 9h12v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Herramienta 8</h2>
+                </div>
+                <div data-tool-src="tools/herramienta9.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-gray-100 text-gray-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v1h-2V4a1 1 0 011-1zM5 5h10a1 1 0 011 1v1H4V6a1 1 0 011-1zM4 9h12v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Herramienta 9</h2>
+                </div>
+                <div data-tool-src="tools/herramienta10.html" class="tool-tile cursor-pointer p-4 rounded-xl flex flex-col items-center text-center">
+                    <div class="bg-gray-100 text-gray-600 rounded-lg p-3 mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v1h-2V4a1 1 0 011-1zM5 5h10a1 1 0 011 1v1H4V6a1 1 0 011-1zM4 9h12v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9z" clip-rule="evenodd" /></svg></div>
+                    <h2 class="text-sm font-semibold text-slate-700">Herramienta 10</h2>
+                </div>
+
+            </main>
         </div>
     </div>
-    
-    <!-- Modal para mostrar resultado -->
-    <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
-        <div class="result-modal-content bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
-            <h2 id="resultTitle" class="text-2xl font-bold text-slate-800"></h2>
-            <div id="resultBody" class="mt-4 text-lg text-slate-600"></div>
-            <button id="closeResultModal" class="mt-8 bg-blue-500 text-white font-semibold py-2 px-6 rounded-lg shadow hover:bg-blue-600 transition-colors">Cerrar</button>
-        </div>
-    </div>
-    
-    <!-- ADDED: Hidden file input for CSV import -->
-    <input type="file" id="importCsvInput" class="hidden" accept=".csv,.txt">
 
+    <!-- Vista para mostrar la herramienta seleccionada (gestionada por JS) -->
+    <div id="tool-app-view">
+        <div class="bg-white/80 backdrop-blur-sm border-b border-slate-200 p-2 shadow-sm flex items-center">
+            <button id="back-to-tool-launcher-btn" class="text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+        </div>
+        <iframe id="tool-iframe" src="about:blank"></iframe>
+    </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- STATE ---
-        let students = [];
-        let uncalledStudents = [];
-        let activeTool = 'fair';
+        document.addEventListener('DOMContentLoaded', () => {
+            const launcher_view = document.getElementById('tool-launcher-view');
+            const app_view = document.getElementById('tool-app-view');
+            const tool_grid = document.getElementById('tool-grid');
+            const tool_iframe = document.getElementById('tool-iframe');
+            const back_btn = document.getElementById('back-to-tool-launcher-btn');
 
-        // Timer State
-        let timerInterval = null;
-        let timerTotalSeconds = 0;
-        let timerSecondsRemaining = 0;
-
-        // Noise Meter State
-        let audioContext = null;
-        let microphone = null;
-        let analyser = null;
-        let animationFrameId = null;
-
-
-        // --- DOM ELEMENTS ---
-        const addStudentForm = document.getElementById('addStudentForm');
-        const studentNameInput = document.getElementById('studentNameInput');
-        const studentListEl = document.getElementById('student-list');
-        const emptyStudentListEl = document.getElementById('empty-student-list');
-        const toolTabs = document.querySelectorAll('.tool-tab');
-        const toolContentEl = document.getElementById('tool-content');
-        const resultModal = document.getElementById('resultModal');
-        const resultTitle = document.getElementById('resultTitle');
-        const resultBody = document.getElementById('resultBody');
-        const closeResultModal = document.getElementById('closeResultModal');
-        // ADDED: CSV Import elements
-        const importCsvBtn = document.getElementById('importCsvBtn');
-        const importCsvInput = document.getElementById('importCsvInput');
-
-        // --- LOCAL STORAGE ---
-        function saveStudents() {
-            localStorage.setItem('classToolsStudents', JSON.stringify(students));
-        }
-
-        function loadStudents() {
-            const saved = localStorage.getItem('classToolsStudents');
-            if (saved) {
-                students = JSON.parse(saved);
-                // Sync uncalled students with the main list on load
-                const calledStudents = new Set(students.filter(s => !uncalledStudents.includes(s)));
-                uncalledStudents = students.filter(s => !calledStudents.has(s));
-                if (uncalledStudents.length === 0 && students.length > 0) {
-                   uncalledStudents = [...students]; // Auto-reset if cycle was finished
-                }
+            function showTool(toolSrc) {
+                tool_iframe.src = toolSrc;
+                launcher_view.style.display = 'none';
+                app_view.style.display = 'flex';
             }
-        }
-
-        // --- CLEANUP ---
-        function cleanupActiveTool() {
-            // Stop timer
-            clearInterval(timerInterval);
-            timerInterval = null;
-            // Stop noise meter
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
+            function showToolLauncher() {
+                app_view.style.display = 'none';
+                launcher_view.style.display = 'block';
+                tool_iframe.src = 'about:blank';
             }
-            if (microphone) {
-                microphone.getTracks().forEach(track => track.stop());
-                microphone = null;
-            }
-             if (audioContext && audioContext.state !== 'closed') {
-                audioContext.close();
-                audioContext = null;
-            }
-        }
-
-        // --- RENDERING ---
-        function renderStudentList() {
-            studentListEl.innerHTML = '';
-            if (students.length === 0) {
-                emptyStudentListEl.classList.remove('hidden');
-                studentListEl.classList.add('hidden');
-                return;
-            }
-            emptyStudentListEl.classList.add('hidden');
-            studentListEl.classList.remove('hidden');
-
-            students.forEach((student, index) => {
-                const studentDiv = document.createElement('div');
-                studentDiv.className = 'flex items-center justify-between bg-slate-50 p-2 rounded-md text-sm';
-                studentDiv.innerHTML = `
-                    <span class="text-slate-700">${student}</span>
-                    <button data-index="${index}" class="remove-student-btn text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
-                `;
-                studentListEl.appendChild(studentDiv);
+            tool_grid.addEventListener('click', (event) => {
+                const tile = event.target.closest('.tool-tile');
+                if (tile && tile.dataset.toolSrc) showTool(tile.dataset.toolSrc);
             });
-        }
-        
-        function renderTool() {
-            cleanupActiveTool();
-            toolTabs.forEach(tab => tab.classList.remove('active'));
-            document.querySelector(`.tool-tab[data-tool="${activeTool}"]`).classList.add('active');
-
-            toolContentEl.innerHTML = ''; // Clear content
-            switch (activeTool) {
-                case 'fair':
-                     const remaining = uncalledStudents.length;
-                    toolContentEl.innerHTML = `
-                        <button id="runFair" class="bg-green-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-600 transition-transform hover:scale-105 text-lg">Seleccionar Participante</button>
-                        <p class="text-sm text-slate-400 mt-4">Faltan ${remaining} de ${students.length} alumnos.</p>
-                        ${remaining === 0 && students.length > 0 ? '<button id="resetFair" class="text-sm text-blue-500 hover:underline mt-2">Reiniciar ciclo</button>' : ''}
-                    `;
-                    document.getElementById('runFair').addEventListener('click', runFairSelection);
-                    if(document.getElementById('resetFair')) {
-                         document.getElementById('resetFair').addEventListener('click', () => {
-                            uncalledStudents = [...students];
-                            renderTool();
-                         });
-                    }
-                    break;
-                case 'groups':
-                    toolContentEl.innerHTML = `
-                        <div class="flex items-center gap-4">
-                            <label for="groupCount" class="font-semibold">Número de grupos:</label>
-                            <input type="number" id="groupCount" value="2" min="2" max="${students.length || 2}" class="w-20 border border-slate-300 rounded-md p-2 text-center">
-                            <button id="runGroups" class="bg-purple-500 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-purple-600 transition-colors">Formar Grupos</button>
-                        </div>
-                    `;
-                     document.getElementById('runGroups').addEventListener('click', runGroupFormation);
-                    break;
-                case 'timer':
-                    toolContentEl.innerHTML = `
-                        <div class="relative w-48 h-48">
-                            <svg class="w-full h-full" viewBox="0 0 100 100">
-                                <circle class="timer-circle-bg" stroke-width="8" cx="50" cy="50" r="45"></circle>
-                                <circle id="timer-progress" class="timer-circle-progress" stroke-width="8" cx="50" cy="50" r="45" style="stroke-dasharray: 283; stroke-dashoffset: 283;"></circle>
-                            </svg>
-                            <div id="timer-display" class="absolute inset-0 flex items-center justify-center text-4xl font-bold">00:00</div>
-                        </div>
-                        <div id="timer-presets" class="flex gap-2 mt-4">
-                            <button data-time="60" class="timer-set-btn bg-slate-200 px-3 py-1 rounded-md text-sm">1 min</button>
-                            <button data-time="300" class="timer-set-btn bg-slate-200 px-3 py-1 rounded-md text-sm">5 min</button>
-                            <button data-time="600" class="timer-set-btn bg-slate-200 px-3 py-1 rounded-md text-sm">10 min</button>
-                        </div>
-                        <div class="flex gap-2 mt-2">
-                            <button id="timer-start-pause" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-md w-24">Iniciar</button>
-                            <button id="timer-reset" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-md w-24">Reset</button>
-                        </div>
-                    `;
-                    document.querySelectorAll('.timer-set-btn').forEach(btn => btn.addEventListener('click', setTimer));
-                    document.getElementById('timer-start-pause').addEventListener('click', toggleTimer);
-                    document.getElementById('timer-reset').addEventListener('click', resetTimer);
-                    break;
-                case 'noise':
-                    toolContentEl.innerHTML = `
-                        <div id="noise-meter-visual" class="w-full h-48 bg-slate-100 rounded-lg flex items-end overflow-hidden">
-                            <div id="noise-level" class="w-full bg-green-500 transition-all duration-100" style="height: 0%;"></div>
-                        </div>
-                        <button id="start-noise-meter" class="mt-4 bg-orange-500 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-orange-600 transition-colors">Empezar a Medir</button>
-                    `;
-                    document.getElementById('start-noise-meter').addEventListener('click', toggleNoiseMeter);
-                    break;
-            }
-        }
-        
-        // --- TOOL LOGIC: Participation & Groups ---
-        function runFairSelection() {
-            if (students.length === 0) {
-                 alert("Añade alumnos a la lista primero.");
-                 return;
-            }
-            if (uncalledStudents.length === 0) {
-                 alert("Todos los alumnos ya participaron. Reinicia el ciclo.");
-                 return;
-            }
-            const randomIndex = Math.floor(Math.random() * uncalledStudents.length);
-            const selected = uncalledStudents.splice(randomIndex, 1)[0];
-            showResult('Participante', `<p class="text-4xl font-bold text-green-600">${selected}</p>`);
-            renderTool();
-        }
-
-        function runGroupFormation() {
-            const groupCount = parseInt(document.getElementById('groupCount').value, 10);
-            if (students.length < 2) {
-                alert("Necesitas al menos 2 alumnos para formar grupos.");
-                return;
-            }
-             if (isNaN(groupCount) || groupCount < 2 || groupCount > students.length) {
-                alert("Por favor, introduce un número válido de grupos.");
-                return;
-            }
-
-            let shuffled = [...students].sort(() => 0.5 - Math.random());
-            let groups = Array.from({ length: groupCount }, () => []);
-            
-            shuffled.forEach((student, index) => {
-                groups[index % groupCount].push(student);
-            });
-
-            let resultHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-h-80 overflow-y-auto">`;
-            groups.forEach((group, index) => {
-                resultHTML += `<div><h4 class="font-semibold mb-2 border-b">Grupo ${index + 1}</h4><ul class="list-disc list-inside text-slate-600">`;
-                group.forEach(student => {
-                    resultHTML += `<li>${student}</li>`;
-                });
-                resultHTML += '</ul></div>';
-            });
-            resultHTML += '</div>';
-            showResult('Grupos Formados', resultHTML);
-        }
-        
-        // --- TOOL LOGIC: Timer ---
-        function setTimer(e) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            const seconds = parseInt(e.target.dataset.time, 10);
-            timerTotalSeconds = seconds;
-            timerSecondsRemaining = seconds;
-            updateTimerDisplay();
-            document.getElementById('timer-start-pause').textContent = 'Iniciar';
-        }
-
-        function toggleTimer() {
-            const button = document.getElementById('timer-start-pause');
-            if (timerInterval) { // Pausar
-                clearInterval(timerInterval);
-                timerInterval = null;
-                button.textContent = 'Continuar';
-                button.classList.replace('bg-blue-500', 'bg-yellow-500');
-            } else { // Iniciar o continuar
-                if (timerSecondsRemaining === 0) timerSecondsRemaining = timerTotalSeconds || 60; // Default a 1 min si no hay nada
-                if (timerTotalSeconds === 0) timerTotalSeconds = timerSecondsRemaining;
-
-                button.textContent = 'Pausa';
-                button.classList.remove('bg-yellow-500');
-                button.classList.add('bg-blue-500');
-                
-                timerInterval = setInterval(() => {
-                    timerSecondsRemaining--;
-                    updateTimerDisplay();
-                    if (timerSecondsRemaining <= 0) {
-                        clearInterval(timerInterval);
-                        timerInterval = null;
-                        button.textContent = 'Iniciar';
-                        playTimerEndSound();
-                    }
-                }, 1000);
-            }
-        }
-        
-        function resetTimer() {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            timerSecondsRemaining = timerTotalSeconds;
-            updateTimerDisplay();
-            const button = document.getElementById('timer-start-pause');
-            button.textContent = 'Iniciar';
-            button.classList.remove('bg-yellow-500');
-            button.classList.add('bg-blue-500');
-        }
-
-        function updateTimerDisplay() {
-            const minutes = Math.floor(timerSecondsRemaining / 60);
-            const seconds = timerSecondsRemaining % 60;
-            document.getElementById('timer-display').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            
-            const progress = (timerTotalSeconds - timerSecondsRemaining) / timerTotalSeconds;
-            const offset = 283 * (1 - progress);
-            document.getElementById('timer-progress').style.strokeDashoffset = isNaN(offset) || offset < 0 ? 283 : offset;
-        }
-        
-        function playTimerEndSound() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
-                oscillator.connect(audioCtx.destination);
-                oscillator.start();
-                setTimeout(() => oscillator.stop(), 500);
-            } catch (e) { console.error("Could not play sound:", e); }
-        }
-
-        // --- TOOL LOGIC: Noise Meter ---
-        function toggleNoiseMeter(e) {
-             const button = e.target;
-            if (audioContext && audioContext.state === 'running') {
-                cleanupActiveTool();
-                button.textContent = 'Empezar a Medir';
-                button.classList.replace('bg-red-500', 'bg-orange-500');
-                document.getElementById('noise-level').style.height = '0%';
-            } else {
-                 startNoiseMeter(button);
-            }
-        }
-
-        async function startNoiseMeter(button) {
-            try {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert("Tu navegador no soporta el acceso al micrófono.");
-                    return;
-                }
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                microphone = stream;
-                button.textContent = 'Detener';
-                button.classList.replace('bg-orange-500', 'bg-red-500');
-
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                const source = audioContext.createMediaStreamSource(stream);
-                source.connect(analyser);
-                analyser.fftSize = 256;
-                
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-                function updateMeter() {
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = dataArray.reduce((a, b) => a + b, 0);
-                    let average = sum / dataArray.length;
-                    
-                    const level = Math.min(100, (average / 128) * 100 * 2);
-                    const noiseLevelEl = document.getElementById('noise-level');
-                    noiseLevelEl.style.height = `${level}%`;
-
-                    if (level < 40) noiseLevelEl.style.backgroundColor = '#22c55e'; // green-500
-                    else if (level < 70) noiseLevelEl.style.backgroundColor = '#f59e0b'; // amber-500
-                    else noiseLevelEl.style.backgroundColor = '#ef4444'; // red-500
-
-                    animationFrameId = requestAnimationFrame(updateMeter);
-                }
-                updateMeter();
-            } catch (err) {
-                console.error("Error accessing microphone:", err);
-                alert("No se pudo acceder al micrófono. Por favor, revisa los permisos en tu navegador.");
-            }
-        }
-
-        // --- MODAL ---
-        function showResult(title, body) {
-            resultTitle.textContent = title;
-            resultBody.innerHTML = body;
-            resultModal.classList.remove('hidden');
-        }
-
-        function hideResult() {
-            resultModal.classList.add('hidden');
-        }
-
-        // --- ADDED: CSV Import Logic ---
-        function parseStudentsFromCsv(fileContent) {
-            if (!fileContent || typeof fileContent !== 'string') return [];
-            const headerKeywords = ['nombre', 'apellido', 'student', 'name', 'estudiante', 'alumno'];
-            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
-            if (lines.length === 0) return [];
-            const firstLineIsHeader = headerKeywords.some(keyword => lines[0].toLowerCase().includes(keyword));
-            const dataLines = firstLineIsHeader ? lines.slice(1) : lines;
-            return dataLines.map(line => {
-                return line.split(/[,;]/).map(part => part.replace(/"/g, '').trim()).filter(part => part).join(' ');
-            }).filter(name => name);
-        }
-
-        importCsvBtn.addEventListener('click', () => importCsvInput.click());
-        importCsvInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const studentNames = parseStudentsFromCsv(e.target.result);
-                const existingNames = new Set(students.map(s => s.toLowerCase()));
-                let addedCount = 0;
-                
-                studentNames.forEach(name => {
-                    if (!existingNames.has(name.toLowerCase())) {
-                        students.push(name);
-                        uncalledStudents.push(name);
-                        addedCount++;
-                    }
-                });
-
-                if (addedCount > 0) {
-                    saveStudents();
-                    renderStudentList();
-                    renderTool();
-                    alert(`${addedCount} alumno(s) importado(s) con éxito.`);
-                } else {
-                    alert("No se agregaron alumnos nuevos (posiblemente ya existían).");
-                }
-            };
-            reader.readAsText(file);
-            event.target.value = '';
+            back_btn.addEventListener('click', showToolLauncher);
         });
-
-
-        // --- EVENT LISTENERS ---
-        addStudentForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const name = studentNameInput.value.trim();
-            if (name) {
-                students.push(name);
-                uncalledStudents.push(name);
-                studentNameInput.value = '';
-                saveStudents();
-                renderStudentList();
-                renderTool();
-            }
-        });
-
-        studentListEl.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-student-btn')) {
-                const index = parseInt(e.target.dataset.index, 10);
-                const removedStudent = students.splice(index, 1)[0];
-                uncalledStudents = uncalledStudents.filter(s => s !== removedStudent);
-                saveStudents();
-                renderStudentList();
-                renderTool();
-            }
-        });
-
-        toolTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                activeTool = tab.dataset.tool;
-                renderTool();
-            });
-        });
-
-        closeResultModal.addEventListener('click', hideResult);
-
-        // --- INITIALIZATION ---
-        loadStudents();
-        renderStudentList();
-        renderTool();
-    });
     </script>
 </body>
 </html>
